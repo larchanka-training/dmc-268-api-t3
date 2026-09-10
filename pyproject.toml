@@ -2,7 +2,8 @@
 name = "dmc-268-api-t3"
 version = "0.1.0"
 description = "FastAPI backend for DMC-268 Team 3"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.110.0",
-    "uvicorn>=0.28.0"
+    "uvicorn>=0.28.0",
 ]
