@@ -1,0 +1,39 @@
+{
+  "schema_version": "2.0.0",
+  "run_id": "contract-test-run-1",
+  "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "coverage": {
+    "status": "complete",
+    "limitations": []
+  },
+  "findings": [
+    {
+      "title": "Division by zero for an empty set",
+      "severity": "medium",
+      "anchor": {
+        "path": "example.py",
+        "side": "RIGHT",
+        "line": 3
+      },
+      "scenario": "Call ratio(10, 0).",
+      "expected": "Return 0, as before the change.",
+      "actual": "Raise ZeroDivisionError.",
+      "evidence": "The count guard was removed; line 3 divides unconditionally.",
+      "impact": "Calculating a ratio for an empty set raises an exception.",
+      "suggestion": "Preserve zero-count handling according to the contract.",
+      "rule_id": "correctness.zero-division",
+      "related_changed_lines": [
+        {
+          "path": "example.py",
+          "side": "RIGHT",
+          "line": 3
+        }
+      ],
+      "confidence": 0.95
+    }
+  ],
+  "hypotheses": [],
+  "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+  "rules_version": "project-rules/1"
+}

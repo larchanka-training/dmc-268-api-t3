@@ -1,8 +1,8 @@
-# DMC-268 API (Team 3)
+# DMC-268 API (команда 3)
 
-FastAPI backend service for DMC-268 Team 3.
+Backend-сервис команды 3 на FastAPI.
 
-## Setup & Run
+## Установка и запуск
 
 ```bash
 python -m venv .venv
@@ -10,3 +10,5 @@ source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
+
+Правила, скиллы и шаблоны разработки команды: [.agents/README.md](.agents/README.md).

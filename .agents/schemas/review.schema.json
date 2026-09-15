@@ -1,0 +1,290 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "base_sha",
+    "head_sha",
+    "coverage",
+    "findings",
+    "hypotheses",
+    "merge_base_sha",
+    "rules_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "2.0.0"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "base_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "head_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "limitations"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "complete",
+            "partial",
+            "failed"
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "severity",
+          "anchor",
+          "scenario",
+          "expected",
+          "actual",
+          "evidence",
+          "impact",
+          "suggestion",
+          "rule_id",
+          "related_changed_lines",
+          "confidence"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "anchor": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "side",
+              "line"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "side": {
+                "enum": [
+                  "LEFT",
+                  "RIGHT"
+                ]
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "scenario": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "expected": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "actual": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "evidence": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "impact": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "suggestion": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "rule_id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "related_changed_lines": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "side",
+                "line"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "side": {
+                  "enum": [
+                    "LEFT",
+                    "RIGHT"
+                  ]
+                },
+                "line": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            }
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
+    "hypotheses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "question",
+          "missing_context"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "missing_context": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        }
+      }
+    },
+    "merge_base_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "rules_version": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "coverage": {
+            "properties": {
+              "status": {
+                "const": "complete"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "coverage": {
+            "properties": {
+              "limitations": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "coverage": {
+            "properties": {
+              "limitations": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "coverage": {
+            "properties": {
+              "status": {
+                "const": "failed"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "findings": {
+            "maxItems": 0
+          },
+          "hypotheses": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ]
+}

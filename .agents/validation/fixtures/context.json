@@ -1,0 +1,59 @@
+{
+  "run_id": "contract-test-run-1",
+  "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "input_complete": true,
+  "anchors": [
+    {
+      "path": "example.py",
+      "side": "LEFT",
+      "line": 2
+    },
+    {
+      "path": "example.py",
+      "side": "RIGHT",
+      "line": 2
+    },
+    {
+      "path": "example.py",
+      "side": "RIGHT",
+      "line": 3
+    }
+  ],
+  "merge_base_sha": "cccccccccccccccccccccccccccccccccccccccc",
+  "rules_version": "project-rules/1",
+  "locations": [
+    {
+      "path": "example.py",
+      "side": "LEFT",
+      "line": 2
+    },
+    {
+      "path": "example.py",
+      "side": "RIGHT",
+      "line": 2
+    },
+    {
+      "path": "example.py",
+      "side": "RIGHT",
+      "line": 3
+    },
+    {
+      "path": "example.py",
+      "side": "RIGHT",
+      "line": 1
+    }
+  ],
+  "rules": [
+    {
+      "rule_id": "correctness.zero-division",
+      "version": "1",
+      "title": "Preserve zero-count behavior",
+      "description": "Avoid division by zero for accepted zero-count input.",
+      "category": "correctness",
+      "severity": "medium",
+      "instructions": "Find reachable division by zero introduced by the supplied change. Check guards and the caller contract.",
+      "enabled": true
+    }
+  ]
+}
