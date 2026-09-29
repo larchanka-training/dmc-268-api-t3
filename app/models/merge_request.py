@@ -1,11 +1,15 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 from app.models.repository import Repository
+
+if TYPE_CHECKING:
+    from app.models.review_job import ReviewJob
 
 
 class MergeRequest(Base):
@@ -26,3 +30,6 @@ class MergeRequest(Base):
     )
 
     repository: Mapped[Repository] = relationship(back_populates="merge_requests")
+    review_jobs: Mapped[list["ReviewJob"]] = relationship(
+        back_populates="merge_request", cascade="all, delete-orphan"
+    )
