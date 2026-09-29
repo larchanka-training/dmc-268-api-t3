@@ -1,12 +1,16 @@
 import enum
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 from app.models.merge_request import MergeRequest
+
+if TYPE_CHECKING:
+    from app.models.context_payload import ContextPayload
 
 
 class ReviewJobStatus(enum.StrEnum):
@@ -36,3 +40,6 @@ class ReviewJob(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     merge_request: Mapped[MergeRequest] = relationship(back_populates="review_jobs")
+    context_payload: Mapped["ContextPayload | None"] = relationship(
+        back_populates="review_job", uselist=False, cascade="all, delete-orphan"
+    )
