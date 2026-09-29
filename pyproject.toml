@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "FastAPI backend for DMC-268 Team 3"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "alembic>=1.20.0",
     "fastapi>=0.110.0",
     "ollama>=0.6.2",
     "psycopg[binary]>=3.3.5",
@@ -32,6 +33,10 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
 
+[tool.ruff.lint.per-file-ignores]
+# Alembic autogenerates these; line length isn't worth hand-editing.
+"alembic/versions/*.py" = ["E501"]
+
 [tool.pylint.main]
 py-version = "3.12"
 
@@ -41,6 +46,7 @@ disable = [
     "missing-module-docstring",
     "missing-class-docstring",
     "missing-function-docstring",
+    "too-few-public-methods",
 ]
 
 [tool.pylint.format]
