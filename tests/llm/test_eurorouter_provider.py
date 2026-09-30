@@ -7,9 +7,7 @@ from app.llm.providers.eurorouter_provider import EurorouterProvider
 
 
 def _valid_content() -> str:
-    return json.dumps(
-        {"findings": [{"file_path": "a.py", "severity": "info", "message": "Note"}]}
-    )
+    return json.dumps({"findings": [{"file_path": "a.py", "severity": "info", "message": "Note"}]})
 
 
 def _chat_response(content: str) -> dict:
