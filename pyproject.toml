@@ -5,17 +5,19 @@ description = "FastAPI backend for DMC-268 Team 3"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.110.0",
+    "httpx>=0.28.1",
     "ollama>=0.6.2",
     "psycopg[binary]>=3.3.5",
+    "pydantic>=2.13.5",
     "sqlalchemy>=2.0.52",
     "uvicorn>=0.28.0",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
     "pylint>=4.0.8",
     "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
     "ruff>=0.16.6",
 ]
 
@@ -36,11 +38,21 @@ known-first-party = ["app"]
 py-version = "3.12"
 
 # Docstrings are intentionally not required for this minimal skeleton.
+# too-few-public-methods: tripped by the `Provider` Protocol and its single-method
+# implementations (OllamaProvider, EurorouterProvider) — a one-method provider
+# interface is the intended shape, not a design smell.
+# too-many-arguments/too-many-positional-arguments: tripped by
+# `generate_review`'s DoD-facing entry-point signature (1 required object, 1
+# required string, 4 optional with defaults) — a normal, readable signature for
+# this kind of function, not evidence of missing cohesion.
 [tool.pylint.messages_control]
 disable = [
     "missing-module-docstring",
     "missing-class-docstring",
     "missing-function-docstring",
+    "too-few-public-methods",
+    "too-many-arguments",
+    "too-many-positional-arguments",
 ]
 
 [tool.pylint.format]
