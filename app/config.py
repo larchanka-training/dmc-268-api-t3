@@ -32,9 +32,7 @@ def load_settings() -> Settings:
         ollama_host=os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434"),
         eurorouter_base_url=os.getenv("EUROROUTER_BASE_URL", ""),
         eurorouter_api_keys=[
-            key.strip()
-            for key in os.getenv("EUROROUTER_API_KEYS", "").split(",")
-            if key.strip()
+            key.strip() for key in os.getenv("EUROROUTER_API_KEYS", "").split(",") if key.strip()
         ],
         eurorouter_model=os.getenv("EUROROUTER_MODEL", "gpt-4o-mini"),
     )

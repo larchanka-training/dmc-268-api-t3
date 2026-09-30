@@ -35,7 +35,13 @@ class EurorouterProvider:
                     json={
                         "model": self._model,
                         "messages": [{"role": "user", "content": prompt}],
-                        "response_format": {"type": "json_object"},
+                        "response_format": {
+                            "type": "json_schema",
+                            "json_schema": {
+                                "name": "review_result",
+                                "schema": ReviewResult.model_json_schema(),
+                            },
+                        },
                     },
                     timeout=60.0,
                 )
@@ -54,9 +60,10 @@ class EurorouterProvider:
             # A 200 response with a malformed/unexpected body (bad JSON, missing
             # choices, schema mismatch) must also trigger key rotation rather than
             # aborting on the first key — same fallback contract as HTTP errors.
-            except (KeyError, IndexError, json.JSONDecodeError, ValidationError) as exc:
+            except (KeyError, IndexError, TypeError, json.JSONDecodeError, ValidationError) as exc:
                 last_error = exc
                 continue
 
-        assert last_error is not None
+        if last_error is None:
+            raise RuntimeError("Eurorouter provider exhausted all keys with no recorded error")
         raise last_error

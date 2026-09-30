@@ -21,6 +21,7 @@ class LLMGateway:
             # fallback to the next provider rather than aborting the review.
             # pylint: disable-next=broad-except
             except Exception as exc:
-                errors.append(f"{provider.name}: {exc}")
+                detail = str(exc) or type(exc).__name__
+                errors.append(f"{provider.name}: {detail}")
 
         raise AllProvidersFailedError("; ".join(errors))
