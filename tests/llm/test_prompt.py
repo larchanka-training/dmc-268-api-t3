@@ -24,7 +24,9 @@ def test_prompt_includes_few_shot_examples_when_within_budget():
 
 
 def test_prompt_trims_few_shot_examples_to_fit_budget():
-    examples = [FewShotExample(diff=f"example {i}" * 50, review=f"review {i}" * 50) for i in range(5)]
+    examples = [
+        FewShotExample(diff=f"example {i}" * 50, review=f"review {i}" * 50) for i in range(5)
+    ]
     context = PromptContext(language=None, commit_message=None, few_shot_examples=examples)
 
     prompt = build_system_prompt(context, diff="short diff", max_tokens=50)
