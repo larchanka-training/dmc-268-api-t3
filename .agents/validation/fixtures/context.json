@@ -1,0 +1,23 @@
+{
+  "run_id": "training-run-1",
+  "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "input_complete": true,
+  "anchors": [
+    {
+      "path": "example.py",
+      "side": "LEFT",
+      "line": 2
+    },
+    {
+      "path": "example.py",
+      "side": "RIGHT",
+      "line": 2
+    },
+    {
+      "path": "example.py",
+      "side": "RIGHT",
+      "line": 3
+    }
+  ]
+}
