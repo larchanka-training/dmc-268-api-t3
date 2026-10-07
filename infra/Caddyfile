@@ -1,0 +1,12 @@
+:80 {
+	encode gzip
+
+	# /api/healthcheck -> api:8000/healthcheck
+	handle_path /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		reverse_proxy web:8080
+	}
+}
