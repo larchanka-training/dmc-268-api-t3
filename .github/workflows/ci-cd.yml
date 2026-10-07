@@ -86,7 +86,7 @@ jobs:
     timeout-minutes: 20
     environment:
       name: production
-      url: http://${{ vars.VPS_DMC268_IP_T3 }}/
+      url: https://${{ steps.site.outputs.address }}/
     # Never cancel a running apply: it would leave containers half-replaced.
     concurrency:
       group: deploy-production
@@ -100,6 +100,18 @@ jobs:
       IMAGE_REF: ${{ needs.image.outputs.image }}
     steps:
       - uses: actions/checkout@v7
+
+      # Public hostname: Caddy gets a Let's Encrypt certificate for it. Defaults to the
+      # free <ip-with-dashes>.sslip.io name; set the repo variable SITE_ADDRESS to use a real domain.
+      - name: Compute public hostname
+        id: site
+        env:
+          CUSTOM_SITE_ADDRESS: ${{ vars.SITE_ADDRESS }}
+        run: |
+          set -euo pipefail
+          address="${CUSTOM_SITE_ADDRESS:-$(printf '%s' "$DEPLOY_HOST" | tr . -).sslip.io}"
+          echo "address=$address" >> "$GITHUB_OUTPUT"
+          echo "SITE_ADDRESS=$address" >> "$GITHUB_ENV"
 
       - name: Configure SSH
         env:
@@ -171,8 +183,10 @@ jobs:
             --arg postgres_password "$POSTGRES_PASSWORD" \
             --arg eurorouter_api_keys "$EUROROUTER_API_KEYS" \
             --arg eurorouter_base_url "$EUROROUTER_BASE_URL" \
+            --arg site_address "$SITE_ADDRESS" \
             '{api_image: $api_image, postgres_password: $postgres_password,
-              eurorouter_api_keys: $eurorouter_api_keys, eurorouter_base_url: $eurorouter_base_url}' \
+              eurorouter_api_keys: $eurorouter_api_keys, eurorouter_base_url: $eurorouter_base_url,
+              site_address: $site_address}' \
             | ssh deploy-target "umask 077 && cat > $STAGE/api.auto.tfvars.json"
 
       # deploy.sh: flock (shared with the frontend repo's deploy), config promotion,
@@ -189,8 +203,11 @@ jobs:
         if: steps.fresh.outputs.stale != 'true'
         run: |
           set -euo pipefail
-          curl -fsS --retry 20 --retry-delay 3 --retry-all-errors "http://${DEPLOY_HOST}/api/healthcheck"
-          curl -fsS -o /dev/null "http://${DEPLOY_HOST}/"
+          # The first deploy with a new hostname waits for the certificate (~10-60 s).
+          curl -fsS --retry 30 --retry-delay 5 --retry-all-errors "https://${SITE_ADDRESS}/api/healthcheck"
+          curl -fsS -o /dev/null "https://${SITE_ADDRESS}/"
+          # Plain HTTP must redirect to HTTPS.
+          test "$(curl -s -o /dev/null -w '%{http_code}' "http://${SITE_ADDRESS}/")" = 308
           ssh deploy-target "docker exec dmc268-api python -m app.worker.smoke"
 
       # Hygiene only: in-use images are never pruned, and a week of old tags stays for rollback.

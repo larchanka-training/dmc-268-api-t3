@@ -1,0 +1,71 @@
+name: Add SSH access
+
+# Gives teammates their own login to the VPS (user `deploy`) without sharing the CI
+# private key: fetches each GitHub user's public SSH keys and appends them to
+# ~deploy/.ssh/authorized_keys. Idempotent. Needs DEPLOY_SSH_KEY to still work; if it
+# was lost, see docs/DEVOPS.md "Recovering access".
+on:
+  workflow_dispatch:
+    inputs:
+      github_users:
+        description: Comma-separated GitHub usernames, e.g. alice,bob
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  add-keys:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DEPLOY_HOST: ${{ vars.VPS_DMC268_IP_T3 }}
+      GITHUB_USERS: ${{ inputs.github_users }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          install -m 600 .github/ssh/known_hosts ~/.ssh/known_hosts
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          cat > ~/.ssh/config <<EOC
+          Host deploy-target
+            HostName ${DEPLOY_HOST}
+            User deploy
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            BatchMode yes
+          EOC
+
+      - name: Fetch public keys and add them
+        run: |
+          set -euo pipefail
+          added=0
+          for user in $(printf '%s' "$GITHUB_USERS" | tr ',' ' '); do
+            if ! printf '%s' "$user" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9-]{0,38})$'; then
+              echo "::error::'$user' is not a valid GitHub username"; exit 1
+            fi
+            keys="$(curl -fsS "https://github.com/${user}.keys" | grep -E '^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp[0-9]+) ' || true)"
+            if [ -z "$keys" ]; then
+              echo "::error::${user} has no public SSH keys on GitHub (Settings -> SSH and GPG keys)"; exit 1
+            fi
+            while IFS= read -r key; do
+              printf '%s github:%s\n' "$key" "$user" | ssh deploy-target \
+                'k="$(cat)"; f="$HOME/.ssh/authorized_keys"; if grep -qF "${k%% github:*}" "$f"; then echo "already present"; else printf "%s\n" "$k" >> "$f"; echo "added"; fi'
+              added=$((added + 1))
+            done <<< "$keys"
+            echo "processed ${user}"
+          done
+          echo "Processed ${added} key(s)."
+          ssh deploy-target 'grep -c . "$HOME/.ssh/authorized_keys" | sed "s/^/authorized keys now: /"'

@@ -1,12 +1,24 @@
-:80 {
+# SITE_ADDRESS comes from Terraform (var.site_address): a hostname (e.g.
+# 77-237-236-234.sslip.io or a real domain) makes Caddy serve HTTPS with an
+# automatic Let's Encrypt certificate and redirect HTTP to it; ":80" is plain HTTP.
+{$SITE_ADDRESS} {
 	encode gzip
 
+	# During a deploy the old container is removed before the new one is healthy.
+	# Hold requests for up to 30s instead of answering 502, so a deploy shows up
+	# as a short delay rather than as errors.
 	# /api/healthcheck -> api:8000/healthcheck
 	handle_path /api/* {
-		reverse_proxy api:8000
+		reverse_proxy api:8000 {
+			lb_try_duration 30s
+			lb_try_interval 250ms
+		}
 	}
 
 	handle {
-		reverse_proxy web:8080
+		reverse_proxy web:8080 {
+			lb_try_duration 30s
+			lb_try_interval 250ms
+		}
 	}
 }
