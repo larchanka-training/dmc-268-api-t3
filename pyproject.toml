@@ -16,6 +16,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "mypy>=2.4",
+    "pre-commit>=4.6",
     "pylint>=4.0.8",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
@@ -38,6 +40,22 @@ known-first-party = ["app"]
 [tool.ruff.lint.per-file-ignores]
 # Alembic autogenerates these; line length isn't worth hand-editing.
 "alembic/versions/*.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["app", "tests", "alembic"]
+# tests/ has no __init__.py; without this mypy doesn't name those modules
+# "tests.*" and the override below never matches.
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+# Test functions stay unannotated, matching the existing test style.
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
 
 [tool.pylint.main]
 py-version = "3.12"

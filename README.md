@@ -12,6 +12,8 @@ FastAPI backend for DMC-268 Team 3.
 - [Ollama SDK](https://github.com/ollama/ollama-python) — AI integration (configured, not yet used)
 - Ruff — linting and formatting
 - Pylint — static analysis
+- mypy (strict, pydantic plugin) — type checking
+- pre-commit — git hooks that auto-fix (ruff, ruff format, whitespace) and run mypy + pylint before every commit
 
 ## Install dependencies
 
@@ -38,9 +40,19 @@ Ollama is expected to run externally; point `OLLAMA_HOST` at it (see `.env.examp
 
 ## Code quality
 
+Install the git hooks once per clone:
+
 ```bash
+uv run pre-commit install
+```
+
+After that every `git commit` auto-fixes formatting/lint issues (re-stage and commit again if files changed) and blocks the commit on type or lint errors. Run everything by hand:
+
+```bash
+uv run pre-commit run --all-files   # what CI runs
 uv run ruff check .
 uv run ruff format --check .
+uv run mypy .
 uv run pylint app
 ```
 

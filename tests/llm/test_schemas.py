@@ -23,7 +23,7 @@ def test_finding_allows_omitted_optional_fields():
 
 def test_finding_requires_file_path():
     with pytest.raises(ValidationError):
-        Finding(severity=FindingSeverity.INFO, message="Note")
+        Finding(severity=FindingSeverity.INFO, message="Note")  # type: ignore[call-arg]
 
 
 def test_finding_rejects_invalid_severity():
@@ -37,7 +37,7 @@ def test_finding_rejects_unknown_fields():
             file_path="a.py",
             severity=FindingSeverity.INFO,
             message="Note",
-            unexpected="oops",
+            unexpected="oops",  # type: ignore[call-arg]
         )
 
 
@@ -68,4 +68,4 @@ def test_review_result_accepts_multiple_findings():
 
 def test_review_result_rejects_unknown_fields():
     with pytest.raises(ValidationError):
-        ReviewResult(findings=[], unexpected="oops")
+        ReviewResult(findings=[], unexpected="oops")  # type: ignore[call-arg]
