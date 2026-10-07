@@ -31,8 +31,20 @@ variable "eurorouter_model" {
   default = "gpt-4o-mini"
 }
 
+variable "site_address" {
+  description = "Caddy site address. A hostname (e.g. 77-237-236-234.sslip.io) enables HTTPS with a Let's Encrypt certificate; \":80\" serves plain HTTP on any host."
+  type        = string
+  default     = ":80"
+}
+
 variable "http_port" {
-  description = "Host port the public entry (Caddy) binds to."
+  description = "Host port for HTTP (also used for the Let's Encrypt HTTP challenge and the HTTPS redirect)."
   type        = number
   default     = 80
+}
+
+variable "https_port" {
+  description = "Host port for HTTPS."
+  type        = number
+  default     = 443
 }

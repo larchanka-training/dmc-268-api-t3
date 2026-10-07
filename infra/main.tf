@@ -204,16 +204,24 @@ resource "docker_container" "web" {
   }
 }
 
-# The only container with a published port: plain HTTP on the server IP
-# (no domain, so no TLS certificate).
+# The only container with published ports (80 for HTTP/ACME, 443 for HTTPS).
+# Certificates live in the caddy_data volume: keep it, or every deploy would
+# re-issue them and hit Let's Encrypt rate limits.
 resource "docker_container" "caddy" {
   name    = "${local.prefix}-caddy"
   image   = docker_image.caddy.image_id
   restart = "unless-stopped"
 
+  env = ["SITE_ADDRESS=${var.site_address}"]
+
   ports {
     internal = 80
     external = var.http_port
+  }
+
+  ports {
+    internal = 443
+    external = var.https_port
   }
 
   upload {
