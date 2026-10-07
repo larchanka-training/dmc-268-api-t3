@@ -2169,3 +2169,17 @@ Expected: `<title>DMC-268 UI (Team 3)</title>`; `{"status":"ok"} 200`; `docs 200
 - [ ] **Step 3: Prove "deploys automatically on merge".** Make a trivial docs-only PR in the backend repo (e.g. fix a README typo), merge it, and confirm a new `CI/CD` run on `main` ends with `deploy` green and `docker inspect -f '{{.Config.Image}}' dmc268-api` (over ssh) shows the new commit sha.
 
 - [ ] **Step 4: Update Obsidian.** Run the obsidian-docs update workflow for `dmc-268-api-t3`: append a dated "deployed" section to `~/Obsidian/dmc-268-api-t3/devops.md` (live URL, workflows, secrets names, gotchas met during rollout) and restamp `index.md` `last_synced_commit` with the new `main` HEAD.
+
+---
+
+## Execution notes (2026-10-07) — where the implementation differs from the text above
+
+Applied after the final whole-branch review; the code, not the snippets above, is authoritative.
+
+- **Deploys are staged, not written in place.** Jobs upload to `/opt/dmc268/incoming/<repo>-<run id>/` and run `infra/deploy.sh <stage>`; the script takes `flock /opt/dmc268/deploy.lock`, promotes the files into `/opt/dmc268/infra`, applies (migrations first), deletes the stage on success and **restores the previous `*.auto.tfvars.json` on failure**. The frontend job stages only `web.auto.tfvars.json`. Reason: the first design changed live files outside the lock (races between the two repos, possible apply with a half-replaced config).
+- Images are pulled before staging; `docker_image` resources then find them locally.
+- Each deploy job skips itself when its commit is no longer the tip of `main`; on failure it prints `docker logs dmc268-migrate`.
+- `docker_volume.postgres_data` has `prevent_destroy = true`.
+- `database_url` uses `quote(..., safe="")` (not `quote_plus`, which breaks passwords containing a space).
+- `bootstrap.yml` is manual (`workflow_dispatch`) only; password auth allows `keyboard-interactive`.
+- Image pruning only removes old `ghcr.io/*` images (Docker Hub images stay cached).
