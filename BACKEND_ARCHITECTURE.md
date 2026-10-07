@@ -30,3 +30,11 @@ See `docs/architecture/erd.md` for the ER diagram. Entities, in `app/models/`:
 ## Migrations
 
 Alembic (`alembic/`), configured to read the DB URL from `app.config.settings.database_url`. Run `uv run alembic upgrade head` to apply.
+
+## Queue and worker
+
+Background work goes through Redis with [RQ](https://python-rq.org/):
+
+- `app/queue.py` — `get_redis()` / `get_queue()`. Code enqueues with `get_queue().enqueue(func, *args)`; the job function must live in an importable module (not `__main__`).
+- `app/worker/` — the worker process, `python -m app.worker`, run from the same image as the API with a different command. `tasks.py` holds job functions; `ping` is a placeholder until review jobs land (issue #13).
+- `python -m app.worker.smoke` enqueues `ping` and waits for its result — CI and the deploy pipeline use it to prove API → Redis → worker works.

@@ -13,7 +13,7 @@ AI Code Reviewer analyzes changes in GitHub Pull Requests and GitLab Merge Reque
 
 - VCS-agnostic review core; GitHub/GitLab specifics are isolated in adapters.
 - Every review uses an immutable repository snapshot identified by SHA values.
-- Reviews run asynchronously through RabbitMQ workers.
+- Reviews run asynchronously through Redis-backed (RQ) workers.
 - LLM has no direct VCS access or credentials.
 - LLM output is untrusted until validated.
 - PostgreSQL is the source of truth; VCS comments are a projection.
@@ -30,7 +30,7 @@ flowchart TD
     DEV[Developer] --> FE[Frontend]
     FE --> API[Backend API]
     API --> ORCH[Review Orchestrator]
-    ORCH --> MQ[(RabbitMQ)]
+    ORCH --> MQ[(Redis / RQ)]
     MQ --> WORKER[Review Worker]
     WORKER --> VCS[VCS Integration]
     WORKER --> CB[Context Builder]
@@ -54,7 +54,7 @@ flowchart LR
     S <--> GL[GitLab]
     S --> LLM[LLM Provider]
     S --> DB[(PostgreSQL)]
-    S --> MQ[(RabbitMQ)]
+    S --> MQ[(Redis / RQ)]
 ```
 
 ### C4 Container
@@ -63,7 +63,7 @@ flowchart LR
 flowchart TB
     FE[Frontend] --> API[Backend API]
     API --> ORCH[Review Orchestrator]
-    ORCH --> MQ[(RabbitMQ)]
+    ORCH --> MQ[(Redis / RQ)]
     MQ --> W[Review Worker]
     W --> VI[VCS Integration]
     W --> CB[Context Builder]
@@ -183,7 +183,7 @@ A webhook is a trigger, not the source of truth: the orchestrator obtains the PR
 
 ## 6. Queue and Worker
 
-**RabbitMQ is the v1 queue. Redis is not used in v1.** A future cache/locking/rate-limiting layer may use Redis behind abstractions.
+**Redis with [RQ](https://python-rq.org/) is the v1 queue** (changed from RabbitMQ on 2026-10-06 by team decision: the sprint tasks specify Redis, and one Redis container is simpler to operate than a broker). The same Redis may later back a cache/locking/rate-limiting layer behind abstractions.
 
 Queue message contains only the command needed to start processing, preferably:
 
@@ -191,12 +191,12 @@ Queue message contains only the command needed to start processing, preferably:
 {"run_id":"..."}
 ```
 
-The database remains the source of truth for review state; large diffs/context are not sent through RabbitMQ.
+The database remains the source of truth for review state; large diffs/context are not sent through the queue.
 
 ```mermaid
 sequenceDiagram
     participant O as Orchestrator
-    participant Q as RabbitMQ
+    participant Q as Redis (RQ)
     participant W as Worker
     participant DB as PostgreSQL
     O->>DB: Create ReviewRun
@@ -207,7 +207,7 @@ sequenceDiagram
     W->>DB: save result/status
 ```
 
-Workers must tolerate duplicate delivery. Retry policy is limited to transient failures with backoff; fatal failures are not retried. Exhausted messages go to a DLQ. Exact retry count/backoff and stale-`RUNNING` recovery policy are open team decisions.
+Workers must tolerate duplicate delivery. Retry policy is limited to transient failures with backoff; fatal failures are not retried. Exhausted jobs stay in RQ's `FailedJobRegistry`, which serves as the DLQ; retries use `rq.Retry(max=..., interval=[...])`. Exact retry count/backoff and stale-`RUNNING` recovery policy are open team decisions.
 
 ## 7. Context Builder
 
@@ -436,7 +436,7 @@ The following must remain visible for team review rather than being silently fix
 - LLM timeout/token limits and prompt/response retention;
 - context escalation thresholds and token budget;
 - finding-match scoring/thresholds;
-- RabbitMQ retry/backoff, concurrency and stale-run recovery;
+- RQ retry/backoff, concurrency and stale-run recovery;
 - PR/MR size limits and other NFR values;
 - storage retention and availability targets.
 
@@ -450,7 +450,7 @@ This document defines the architecture and responsibilities, not detailed implem
 - C4 Context and Container diagrams reviewed.
 - Main review and publication sequence/data flows reviewed.
 - GitHub/GitLab abstraction and immutable `ReviewRun` semantics agreed.
-- RabbitMQ queue semantics and retry policy agreed.
+- RQ queue semantics and retry policy agreed.
 - Context Builder levels and LLM boundary agreed.
 - Finding validation and history semantics agreed.
 - All numerical NFRs and remaining open decisions explicitly assigned for team decision.

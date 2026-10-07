@@ -81,14 +81,14 @@ The pyramid is adapted for an AI system: classical levels + a separate **LLM Eva
 - `VcsReader`/`VcsPublisher`: GitHubAdapter/GitLabAdapter against **recorded fixtures** (VCR approach) and, optionally, against sandbox repositories.
 - Webhook endpoint: signature validation, rejection on invalid signature, idempotency by `delivery_id`.
 - Orchestrator + PostgreSQL: creation of `ReviewRun`, uniqueness of `review_deduplication_key`, race on parallel inserts.
-- RabbitMQ: publication of `{run_id}`, at-least-once delivery, worker behavior on duplicate message, retries, DLQ.
+- Redis/RQ: enqueue of `{run_id}`, worker behavior on a duplicate job, retries, failed-job registry (DLQ).
 - Worker + DB: status transitions `NEW → QUEUED → RUNNING → COMPLETED|FAILED|CANCELLED`, recovery of stale `RUNNING`.
 - `LlmGateway` with **recorded responses** (fixture-based) and with a mock provider returning errors/timeouts/malformed responses.
 - `VcsPublisher` + DB: `ReviewPublication` with `COMPLETED` run and `FAILED` publication — independence of states.
 - Retention/secrets: verification that queue messages contain no credentials or code.
 
 **Requirements:**
-- All integration tests use **testcontainers** (PostgreSQL, RabbitMQ).
+- All integration tests use **testcontainers** (PostgreSQL, Redis).
 - VCS fixtures are stored in the repository and versioned.
 - Mandatory negative scenarios: network unavailable, VCS returns 5xx, MQ unavailable at enqueue time, DB unavailable at run load time.
 
@@ -207,7 +207,7 @@ At least **10%** of findings from each run (or a minimum of 30 findings) are rev
 
 | Environment | Purpose | Features |
 |---|---|---|
-| **local** | Unit + part of Integration | Testcontainers (Postgres, RabbitMQ), mock LLM |
+| **local** | Unit + part of Integration | Testcontainers (Postgres, Redis), mock LLM |
 | **ci** | Unit + Integration + metric collection | Testcontainers, fixture LLM |
 | **staging** | E2E + LLM Eval | Sandbox GitHub/GitLab orgs, real LLM, isolated DB |
 | **prod** | Smoke + canary | Metrics read-only, no synthetic MRs |
@@ -262,7 +262,7 @@ testdata/
 
 ### 4.5. Tools
 
-- **Testcontainers** — Postgres, RabbitMQ.
+- **Testcontainers** — Postgres, Redis.
 - **WireMock / MSW** — HTTP mocks for VCS and LLM.
 - **VCR / Polly.js** — recording/playback of real GitHub/GitLab responses.
 - **Promptfoo / DeepEval / custom runner** — LLM-eval run and metric aggregation (choice — open decision).
@@ -365,7 +365,7 @@ Feature: Failure isolation
 | Orchestrator / ReviewRun | ✔ | ✔ | ✔ | — |
 | VcsReader / Adapters | — | ✔ | ✔ | — |
 | VcsPublisher | ✔ | ✔ | ✔ | — |
-| RabbitMQ / Worker | — | ✔ | ✔ | — |
+| Redis (RQ) / Worker | — | ✔ | ✔ | — |
 | Context Builder | ✔ | ✔ | — | ✔ |
 | AST / Imports | ✔ | ✔ | — | ✔ |
 | LLM Gateway | ✔ | ✔ | ✔ | ✔ |
