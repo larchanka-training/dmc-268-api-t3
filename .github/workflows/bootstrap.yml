@@ -1,0 +1,51 @@
+name: Bootstrap server
+
+# Idempotent, so re-running is safe. Manual only: Actions tab -> Run workflow
+# (available once this file is on main). Never runs on push.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DEPLOY_HOST: ${{ vars.VPS_DMC268_IP_T3 }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Run bootstrap.sh as root (password login, the only time it is used)
+        env:
+          SSHPASS: ${{ secrets.VPS_DMC268_P }}
+          VPS_USER: ${{ secrets.VPS_DMC268_U }}
+        run: |
+          set -euo pipefail
+          pubkey="$(cat infra/bootstrap/deploy_key.pub)"
+          sshpass -e ssh \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=.github/ssh/known_hosts \
+            -o PreferredAuthentications=password \
+            -o PubkeyAuthentication=no \
+            "$VPS_USER@$DEPLOY_HOST" "DEPLOY_PUBKEY='$pubkey' bash -s" < infra/bootstrap/bootstrap.sh
+
+      - name: Verify key login as deploy
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile=.github/ssh/known_hosts \
+            "deploy@$DEPLOY_HOST" 'id && docker version --format "{{.Server.Version}}" && test -w /opt/dmc268 && echo deploy-ready'
