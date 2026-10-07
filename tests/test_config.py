@@ -14,3 +14,15 @@ def test_database_url_escapes_special_characters_in_credentials():
     assert url.password == "p@ss:w/rd%"
     assert url.host == settings.postgres_host
     assert url.database == settings.postgres_db
+
+
+def test_redis_url_defaults_to_compose_service(monkeypatch):
+    monkeypatch.delenv("REDIS_URL", raising=False)
+
+    assert load_settings().redis_url == "redis://redis:6379/0"
+
+
+def test_redis_url_reads_env(monkeypatch):
+    monkeypatch.setenv("REDIS_URL", "redis://example:6380/2")
+
+    assert load_settings().redis_url == "redis://example:6380/2"

@@ -10,12 +10,15 @@ dependencies = [
     "ollama>=0.6.2",
     "psycopg[binary]>=3.3.5",
     "pydantic>=2.13.5",
+    "redis>=8.1",
+    "rq>=2.12",
     "sqlalchemy>=2.0.52",
     "uvicorn>=0.28.0",
 ]
 
 [dependency-groups]
 dev = [
+    "fakeredis>=2.39",
     "mypy>=2.4",
     "pre-commit>=4.6",
     "pylint>=4.0.8",
