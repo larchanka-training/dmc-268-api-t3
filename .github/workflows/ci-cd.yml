@@ -120,34 +120,24 @@ jobs:
             BatchMode yes
           EOF
 
-      - name: Upload Terraform config
-        run: |
-          set -euo pipefail
-          # Drop old *.tf first so a file deleted from the repo is deleted on the server too.
-          ssh deploy-target "install -d -m 700 $APP_DIR/infra && find $APP_DIR/infra -maxdepth 1 -name '*.tf' -delete"
-          # Tracked files only (keeps exec bits); server-side state and tfvars are left alone.
-          git archive --format=tar HEAD:infra | ssh deploy-target "tar -C $APP_DIR/infra -xf -"
-
-      # Secrets travel over stdin into a 0600 file, never as arguments.
-      - name: Write runtime config and secrets
+      # Newer than this commit's tip of main? Then a later merge already deployed
+      # (or will deploy) a newer version; applying this one would roll it back.
+      - name: Skip if a newer commit exists on main
+        id: fresh
         env:
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          EUROROUTER_API_KEYS: ${{ secrets.AI_DMC268_T3 }}
-          EUROROUTER_BASE_URL: ${{ vars.AI_DMC268_URL }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          : "${POSTGRES_PASSWORD:?repo secret POSTGRES_PASSWORD is not set}"
-          jq -n \
-            --arg api_image "$IMAGE_REF" \
-            --arg postgres_password "$POSTGRES_PASSWORD" \
-            --arg eurorouter_api_keys "$EUROROUTER_API_KEYS" \
-            --arg eurorouter_base_url "$EUROROUTER_BASE_URL" \
-            '{api_image: $api_image, postgres_password: $postgres_password,
-              eurorouter_api_keys: $eurorouter_api_keys, eurorouter_base_url: $eurorouter_base_url}' \
-            | ssh deploy-target "umask 077 && cat > $APP_DIR/infra/api.auto.tfvars.json.new && mv $APP_DIR/infra/api.auto.tfvars.json.new $APP_DIR/infra/api.auto.tfvars.json"
+          tip="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            echo "::notice::${GITHUB_SHA} is no longer the tip of main (${tip}); skipping this deploy."
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          fi
 
       # A throwaway DOCKER_CONFIG keeps the short-lived token off the server's disk.
+      # Pulled before anything is staged, so Terraform finds the image locally.
       - name: Pull image on the server
+        if: steps.fresh.outputs.stale != 'true'
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_USER: ${{ github.actor }}
@@ -159,11 +149,44 @@ jobs:
             docker login ghcr.io -u '$GHCR_USER' --password-stdin >/dev/null
             docker pull -q '$IMAGE_REF'"
 
-      # deploy.sh: flock (shared with the frontend repo's deploy), migrations first, then the rest.
+      # Files go to a per-run staging dir; deploy.sh promotes them to the live
+      # config inside the server-side lock, so nothing changes outside it.
+      - name: Stage config and secrets
+        if: steps.fresh.outputs.stale != 'true'
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          EUROROUTER_API_KEYS: ${{ secrets.AI_DMC268_T3 }}
+          EUROROUTER_BASE_URL: ${{ vars.AI_DMC268_URL }}
+        run: |
+          set -euo pipefail
+          : "${POSTGRES_PASSWORD:?repo secret POSTGRES_PASSWORD is not set}"
+          STAGE="$APP_DIR/incoming/backend-$GITHUB_RUN_ID"
+          echo "STAGE=$STAGE" >> "$GITHUB_ENV"
+          ssh deploy-target "install -d -m 700 $APP_DIR/incoming && rm -rf $STAGE && install -d -m 700 $STAGE"
+          # Tracked files only (keeps exec bits); server-side state is never touched.
+          git archive --format=tar HEAD:infra | ssh deploy-target "tar -C $STAGE -xf -"
+          # Secrets travel over stdin into a 0600 file, never as arguments.
+          jq -n \
+            --arg api_image "$IMAGE_REF" \
+            --arg postgres_password "$POSTGRES_PASSWORD" \
+            --arg eurorouter_api_keys "$EUROROUTER_API_KEYS" \
+            --arg eurorouter_base_url "$EUROROUTER_BASE_URL" \
+            '{api_image: $api_image, postgres_password: $postgres_password,
+              eurorouter_api_keys: $eurorouter_api_keys, eurorouter_base_url: $eurorouter_base_url}' \
+            | ssh deploy-target "umask 077 && cat > $STAGE/api.auto.tfvars.json"
+
+      # deploy.sh: flock (shared with the frontend repo's deploy), config promotion,
+      # migrations first, then the rest; restores the previous settings on failure.
       - name: terraform apply
-        run: ssh deploy-target "$APP_DIR/infra/deploy.sh"
+        if: steps.fresh.outputs.stale != 'true'
+        run: ssh deploy-target "$STAGE/deploy.sh $STAGE"
+
+      - name: Show migration logs on failure
+        if: failure()
+        run: ssh deploy-target "docker logs --tail 100 dmc268-migrate" || true
 
       - name: Smoke test
+        if: steps.fresh.outputs.stale != 'true'
         run: |
           set -euo pipefail
           curl -fsS --retry 20 --retry-delay 3 --retry-all-errors "http://${DEPLOY_HOST}/api/healthcheck"
@@ -172,5 +195,8 @@ jobs:
 
       # Hygiene only: in-use images are never pruned, and a week of old tags stays for rollback.
       - name: Prune old images
+        if: steps.fresh.outputs.stale != 'true'
         continue-on-error: true
-        run: ssh deploy-target "docker image prune -af --filter until=168h"
+        # Docker Hub images (terraform, caddy, ...) are old by creation date but must
+        # stay cached; only prune what this pipeline pushed.
+        run: ssh deploy-target "docker images --format '{{.Repository}}:{{.Tag}} {{.CreatedSince}}' | grep '^ghcr.io/' | grep -E 'weeks|month|year' | cut -d' ' -f1 | xargs -r docker rmi" || true

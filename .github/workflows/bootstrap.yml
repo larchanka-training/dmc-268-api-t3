@@ -34,7 +34,7 @@ jobs:
           sshpass -e ssh \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile=.github/ssh/known_hosts \
-            -o PreferredAuthentications=password \
+            -o PreferredAuthentications=password,keyboard-interactive \
             -o PubkeyAuthentication=no \
             "$VPS_USER@$DEPLOY_HOST" "DEPLOY_PUBKEY='$pubkey' bash -s" < infra/bootstrap/bootstrap.sh
 

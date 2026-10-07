@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass
-from urllib.parse import quote_plus
+from urllib.parse import quote
 
 
 @dataclass(frozen=True)
@@ -19,8 +19,8 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     @property
     def database_url(self) -> str:
         return (
-            f"postgresql+psycopg://{quote_plus(self.postgres_user)}:"
-            f"{quote_plus(self.postgres_password)}"
+            f"postgresql+psycopg://{quote(self.postgres_user, safe='')}:"
+            f"{quote(self.postgres_password, safe='')}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
 

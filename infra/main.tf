@@ -20,6 +20,12 @@ resource "docker_network" "app" {
 
 resource "docker_volume" "postgres_data" {
   name = "${local.prefix}_postgres_data"
+
+  # Guard rail: this holds the database. A config mistake or an accidental
+  # `destroy` must fail instead of deleting it.
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "docker_volume" "redis_data" {
@@ -142,7 +148,7 @@ resource "docker_container" "migrate" {
     # apply before new code starts against the old schema.
     postcondition {
       condition     = self.exit_code == 0
-      error_message = "alembic upgrade head failed; see the migrate container logs above."
+      error_message = "alembic upgrade head failed; run `docker logs dmc268-migrate` on the server (the CI deploy job prints them)."
     }
   }
 }
