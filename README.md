@@ -85,6 +85,31 @@ See `.env.example`. Copy it to `.env` and adjust as needed:
 | `EUROROUTER_API_KEYS` | Comma-separated Eurorouter API keys | empty |
 | `EUROROUTER_MODEL` | Eurorouter model name | `gpt-4o-mini` |
 
+## Deployment
+
+Every push to `main` runs `.github/workflows/ci-cd.yml`: lint/types/tests, Terraform validation and a `docker compose` smoke test; only if all are green it builds `ghcr.io/larchanka-training/dmc-268-api-t3:<sha>` and deploys it to the team VPS at **http://77.237.236.234/** (API under `/api/`, e.g. `/api/healthcheck`, `/api/docs`). The frontend repo `dmc-268-ui-t3` deploys its static image the same way.
+
+```
+Internet :80 ──► dmc268-caddy ──/api/*──► dmc268-api ──► dmc268-postgres
+                               └─ /*  ──► dmc268-web    dmc268-worker ──► dmc268-redis
+```
+
+- **Infrastructure as code:** `infra/` (Terraform, Docker provider). The workflow copies it to `/opt/dmc268/infra` on the VPS and runs `infra/deploy.sh` there (Terraform in a container, under `flock /opt/dmc268/deploy.lock`). Terraform state lives in that directory on the server. Never run `destroy` there — it deletes the database volume.
+- **Migrations** run in the one-shot `dmc268-migrate` container on every deploy, applied *before* anything else is replaced; if they fail, the deploy fails and the previous API and worker keep running.
+- **Secrets** are GitHub Encrypted Secrets, written at deploy time into `/opt/dmc268/infra/api.auto.tfvars.json` (mode 0600) and passed to containers as environment variables:
+
+| Name | Kind | Used for |
+|---|---|---|
+| `VPS_DMC268_IP_T3` | org variable | server address |
+| `VPS_DMC268_U` / `VPS_DMC268_P` | org secrets | root password login, bootstrap workflow only |
+| `AI_DMC268_T3` / `AI_DMC268_URL` | org secret / variable | `EUROROUTER_API_KEYS` / `EUROROUTER_BASE_URL` |
+| `DEPLOY_SSH_KEY` | repo secret (this repo and the UI repo) | SSH key of the `deploy` user |
+| `POSTGRES_PASSWORD` | repo secret | database password — do not rotate without `ALTER USER` in the DB |
+
+- **First-time server setup:** `.github/workflows/bootstrap.yml` (idempotent; run from the Actions tab) installs Docker, creates the key-only `deploy` user and `/opt/dmc268`.
+- **Rollback:** open the Actions run of the last good commit and use *Re-run jobs → deploy*; its image is still in GHCR.
+- **Debugging:** `ssh -i <deploy key> deploy@77.237.236.234`, then `docker ps`, `docker logs dmc268-api`, `docker logs dmc268-worker`.
+
 ## Health check
 
 ```

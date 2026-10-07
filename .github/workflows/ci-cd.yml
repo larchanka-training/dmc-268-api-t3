@@ -48,3 +48,129 @@ jobs:
         run: docker compose logs
       - if: always()
         run: docker compose down -v
+
+  image:
+    name: Build and push image
+    needs: [checks, terraform, compose]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.tag.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: tag
+        run: echo "image=${IMAGE}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      # The gha cache export needs buildx's docker-container driver.
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.tag.outputs.image }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to production
+    needs: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: http://${{ vars.VPS_DMC268_IP_T3 }}/
+    # Never cancel a running apply: it would leave containers half-replaced.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+    env:
+      DEPLOY_HOST: ${{ vars.VPS_DMC268_IP_T3 }}
+      APP_DIR: /opt/dmc268
+      IMAGE_REF: ${{ needs.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          install -m 600 .github/ssh/known_hosts ~/.ssh/known_hosts
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          cat > ~/.ssh/config <<EOF
+          Host deploy-target
+            HostName ${DEPLOY_HOST}
+            User deploy
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            BatchMode yes
+          EOF
+
+      - name: Upload Terraform config
+        run: |
+          set -euo pipefail
+          # Drop old *.tf first so a file deleted from the repo is deleted on the server too.
+          ssh deploy-target "install -d -m 700 $APP_DIR/infra && find $APP_DIR/infra -maxdepth 1 -name '*.tf' -delete"
+          # Tracked files only (keeps exec bits); server-side state and tfvars are left alone.
+          git archive --format=tar HEAD:infra | ssh deploy-target "tar -C $APP_DIR/infra -xf -"
+
+      # Secrets travel over stdin into a 0600 file, never as arguments.
+      - name: Write runtime config and secrets
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          EUROROUTER_API_KEYS: ${{ secrets.AI_DMC268_T3 }}
+          EUROROUTER_BASE_URL: ${{ vars.AI_DMC268_URL }}
+        run: |
+          set -euo pipefail
+          : "${POSTGRES_PASSWORD:?repo secret POSTGRES_PASSWORD is not set}"
+          jq -n \
+            --arg api_image "$IMAGE_REF" \
+            --arg postgres_password "$POSTGRES_PASSWORD" \
+            --arg eurorouter_api_keys "$EUROROUTER_API_KEYS" \
+            --arg eurorouter_base_url "$EUROROUTER_BASE_URL" \
+            '{api_image: $api_image, postgres_password: $postgres_password,
+              eurorouter_api_keys: $eurorouter_api_keys, eurorouter_base_url: $eurorouter_base_url}' \
+            | ssh deploy-target "umask 077 && cat > $APP_DIR/infra/api.auto.tfvars.json.new && mv $APP_DIR/infra/api.auto.tfvars.json.new $APP_DIR/infra/api.auto.tfvars.json"
+
+      # A throwaway DOCKER_CONFIG keeps the short-lived token off the server's disk.
+      - name: Pull image on the server
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | ssh deploy-target "set -e
+            export DOCKER_CONFIG=\$(mktemp -d)
+            trap 'rm -rf \"\$DOCKER_CONFIG\"' EXIT
+            docker login ghcr.io -u '$GHCR_USER' --password-stdin >/dev/null
+            docker pull -q '$IMAGE_REF'"
+
+      # deploy.sh: flock (shared with the frontend repo's deploy), migrations first, then the rest.
+      - name: terraform apply
+        run: ssh deploy-target "$APP_DIR/infra/deploy.sh"
+
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 20 --retry-delay 3 --retry-all-errors "http://${DEPLOY_HOST}/api/healthcheck"
+          curl -fsS -o /dev/null "http://${DEPLOY_HOST}/"
+          ssh deploy-target "docker exec dmc268-api python -m app.worker.smoke"
+
+      # Hygiene only: in-use images are never pruned, and a week of old tags stays for rollback.
+      - name: Prune old images
+        continue-on-error: true
+        run: ssh deploy-target "docker image prune -af --filter until=168h"
