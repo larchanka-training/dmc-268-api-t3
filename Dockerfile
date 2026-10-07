@@ -15,6 +15,8 @@ RUN uv sync --frozen --no-dev --no-install-project
 # uv.lock: source = { virtual = "." }) — `app` is never installed into the
 # venv. uvicorn's own CLI inserts --app-dir (defaulting to ".") into
 # sys.path, which is how `app.main` resolves at runtime below.
+COPY alembic.ini ./
+COPY alembic ./alembic
 COPY app ./app
 
 EXPOSE 8000

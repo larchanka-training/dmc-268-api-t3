@@ -3,13 +3,39 @@ services:
     build: .
     ports:
       - "8000:8000"
-    environment:
+    env_file:
+      - path: .env
+        required: false
+    environment: &app-env
       POSTGRES_DB: ${POSTGRES_DB:-app}
       POSTGRES_USER: ${POSTGRES_USER:-app}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
       OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+    depends_on: &app-deps
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # Same image as the API, different command.
+  worker:
+    build: .
+    command: ["python", "-m", "app.worker"]
+    env_file:
+      - path: .env
+        required: false
+    environment: *app-env
+    depends_on: *app-deps
+
+  # One-shot: applies migrations, then exits; api/worker wait for it.
+  migrate:
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    environment: *app-env
     depends_on:
       postgres:
         condition: service_healthy
@@ -30,5 +56,18 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres_data:
+  redis_data:

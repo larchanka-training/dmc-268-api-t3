@@ -9,6 +9,7 @@ FastAPI backend for DMC-268 Team 3.
 - FastAPI — web framework
 - SQLAlchemy — database access
 - PostgreSQL — relational database
+- Redis + [RQ](https://python-rq.org/) — background job queue and worker
 - [Ollama SDK](https://github.com/ollama/ollama-python) — AI integration (configured, not yet used)
 - Ruff — linting and formatting
 - Pylint — static analysis
@@ -29,14 +30,19 @@ uv run uvicorn app.main:app --reload
 
 Then visit http://localhost:8000/healthcheck.
 
-## Run the full local environment (API + PostgreSQL)
+## Run the full local environment
 
 ```bash
 docker compose up
 ```
 
-The API is available at http://localhost:8000/healthcheck once the stack is up.
-Ollama is expected to run externally; point `OLLAMA_HOST` at it (see `.env.example`).
+Starts PostgreSQL, Redis, a one-shot `migrate` container (`alembic upgrade head`), the API and the worker. The API is at http://localhost:8000/healthcheck once the stack is up. Check that the worker consumes jobs:
+
+```bash
+docker compose exec api python -m app.worker.smoke   # exit code 0 = OK
+```
+
+Ollama is expected to run externally; point `OLLAMA_HOST` at it (see `.env.example`). Put Eurorouter credentials in `.env` (`EUROROUTER_*`) — it is read by the api and worker containers if present.
 
 ## Code quality
 
@@ -73,7 +79,11 @@ See `.env.example`. Copy it to `.env` and adjust as needed:
 | `POSTGRES_PASSWORD` | Database password | `app` |
 | `POSTGRES_HOST` | Database host | `postgres` |
 | `POSTGRES_PORT` | Database port | `5432` |
+| `REDIS_URL` | Redis connection URL (queue) | `redis://redis:6379/0` |
 | `OLLAMA_HOST` | Ollama server URL | `http://host.docker.internal:11434` |
+| `EUROROUTER_BASE_URL` | Eurorouter API base URL | empty |
+| `EUROROUTER_API_KEYS` | Comma-separated Eurorouter API keys | empty |
+| `EUROROUTER_MODEL` | Eurorouter model name | `gpt-4o-mini` |
 
 ## Health check
 
