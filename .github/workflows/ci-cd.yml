@@ -1,0 +1,50 @@
+name: CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  checks:
+    name: Lint, types, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - run: uv sync --locked
+      # Same hooks as the local git hook: ruff, ruff format, mypy, pylint, whitespace.
+      - run: uv run pre-commit run --all-files --show-diff-on-failure
+      - run: uv run pytest
+
+  terraform:
+    name: Terraform fmt + validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - run: infra/apply.sh fmt -check -diff
+      - run: infra/apply.sh init -backend=false -input=false -no-color
+      - run: infra/apply.sh validate -no-color
+
+  compose:
+    name: docker compose smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker compose up -d --build --wait --wait-timeout 180
+      - run: curl -fsS http://localhost:8000/healthcheck
+      - run: docker compose exec -T api python -m app.worker.smoke
+      - if: failure()
+        run: docker compose logs
+      - if: always()
+        run: docker compose down -v
