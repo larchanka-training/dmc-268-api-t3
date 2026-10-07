@@ -87,6 +87,8 @@ See `.env.example`. Copy it to `.env` and adjust as needed:
 
 ## Deployment
 
+Live: **http://77.237.236.234/** (API health: http://77.237.236.234/api/healthcheck, docs: http://77.237.236.234/api/docs).
+
 Every push to `main` runs `.github/workflows/ci-cd.yml`: lint/types/tests, Terraform validation and a `docker compose` smoke test; only if all are green it builds `ghcr.io/larchanka-training/dmc-268-api-t3:<sha>` and deploys it to the team VPS at **http://77.237.236.234/** (API under `/api/`, e.g. `/api/healthcheck`, `/api/docs`). The frontend repo `dmc-268-ui-t3` deploys its static image the same way.
 
 ```
