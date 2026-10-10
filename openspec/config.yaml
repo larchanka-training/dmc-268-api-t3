@@ -1,0 +1,40 @@
+schema: spec-driven
+
+context: |
+  Project: DMC-268 API (Team 3), a Python 3.12 FastAPI backend for AI code review.
+  Stack: FastAPI, SQLAlchemy, PostgreSQL, Alembic, Redis/RQ, Pydantic, and uv.
+  Architecture: router -> service -> repository -> LLM gateway; the current codebase
+  implements the API health check, persistence models, LLM review generation, and
+  a placeholder RQ worker job. See README.md, BACKEND_ARCHITECTURE.md,
+  SYSTEM_DESIGN.md, and docs/DEVOPS.md for maintained project documentation.
+  OpenSpec specs describe behavior that exists in the code. SYSTEM_DESIGN.md is
+  a draft target design; do not treat planned components as implemented contracts.
+  Use English for OpenSpec artifacts and project specifications.
+  Keep requirements observable and each scenario expressed with WHEN/THEN.
+  Changes should stay focused and preserve the existing layering and type/lint
+  conventions in pyproject.toml.
+  Language: English
+  All artifacts must be written in English.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
