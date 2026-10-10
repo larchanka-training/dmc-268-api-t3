@@ -1,0 +1,26 @@
+## 1. Context Level 1
+
+- [ ] 1.1 Define typed context schemas and parse unified diff files, hunks, and line numbers; verify additions, deletions, multiple hunks, empty input, and malformed ranges.
+- [ ] 1.2 Support renames, quoted paths, newline markers, and excluded binary/lock/minified files; verify parser fixtures and rejection of unsupported combined patches.
+
+## 2. VCS adapters
+
+- [ ] 2.1 Implement GitHub metadata/raw-diff retrieval with trusted origins, typed errors, limits, and revision checks; verify HTTP contract tests.
+- [ ] 2.2 Implement GitLab metadata/raw-diff retrieval with completeness and revision checks; verify HTTP contract tests including pagination/overflow behavior where applicable.
+
+## 3. Durable ingestion
+
+- [ ] 3.1 Add structured-context and delivery/revision persistence migrations; verify upgrade/downgrade and database uniqueness.
+- [ ] 3.2 Implement transactional ingestion and duplicate delivery/source-event handling; verify sequential and concurrent PostgreSQL tests.
+- [ ] 3.3 Add RQ ingestion and recovery dispatch with bounded retries; verify queue outages and crash-window recovery.
+
+## 4. Webhook transport
+
+- [ ] 4.1 Add provider authentication and payload normalization; verify invalid signatures, GitLab freshness/token modes, and supported/ignored events.
+- [ ] 4.2 Connect webhook endpoints to durable acceptance; verify response semantics, repeated delivery, and persisted parsed context through API tests.
+
+## 5. Acceptance and documentation
+
+- [ ] 5.1 Add signed replay script and CI smoke coverage; verify backend-to-context flow and negative authentication cases.
+- [ ] 5.2 Document bot/App setup, ngrok, configuration, and architecture; verify instructions against implemented contracts and report live-check availability.
+- [ ] 5.3 Run required quality/integration checks, reconcile artifacts, and archive the completed change only when all requirements are satisfied.
