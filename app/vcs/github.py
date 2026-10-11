@@ -11,6 +11,7 @@ import httpx
 
 from app.vcs.errors import (
     VcsDiffIncompleteError,
+    VcsInvalidRequestError,
     VcsRevisionChangedError,
     VcsUpstreamError,
 )
@@ -60,9 +61,9 @@ class GitHubClient:
         clock: Callable[[], float] = time.time,
     ) -> None:
         if not base_url.startswith(("https://", "http://")):
-            raise ValueError("GitHubClient requires an absolute http(s) base URL")
+            raise VcsInvalidRequestError("GitHubClient requires an absolute http(s) base URL")
         if not token:
-            raise ValueError("GitHubClient requires a token")
+            raise VcsInvalidRequestError("GitHubClient requires a token")
         self._base_url = base_url.rstrip("/")
         self._token = token
         self._timeout = timeout
@@ -74,7 +75,7 @@ class GitHubClient:
         url = self._pull_url(ref)
         expected = ref.expected_head_sha.strip().lower()
         if not expected:
-            raise ValueError("expected_head_sha is required")
+            raise VcsInvalidRequestError("expected_head_sha is required")
 
         first = self._fetch_metadata(url)
         if first.head_sha.lower() != expected:
@@ -111,9 +112,9 @@ class GitHubClient:
     def _pull_url(self, ref: PullRequestRef) -> str:
         parts = ref.repository.split("/")
         if len(parts) != 2 or any(p in ("", ".", "..") for p in parts):
-            raise ValueError("repository must be 'owner/name'")
+            raise VcsInvalidRequestError("repository must be 'owner/name'")
         if ref.number <= 0:
-            raise ValueError("pull request number must be positive")
+            raise VcsInvalidRequestError("pull request number must be positive")
         owner, repo = (quote(p, safe="") for p in parts)
         return f"{self._base_url}/repos/{owner}/{repo}/pulls/{ref.number}"
 

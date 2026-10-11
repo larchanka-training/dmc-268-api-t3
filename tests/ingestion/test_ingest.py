@@ -1,14 +1,16 @@
 import uuid
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import timedelta
 
 import pytest
 from sqlalchemy import func, select
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.context import DiffParseError
-from app.ingestion import IngestOutcome, VcsEvent, accept_delivery, ingest_delivery
+from app.ingestion import IngestOutcome, VcsEvent, accept_delivery, ingest_delivery, service
 from app.models import (
     ContextPayload,
     MergeRequest,
@@ -27,6 +29,8 @@ from app.vcs import (
     VcsRevisionChangedError,
     VcsUpstreamError,
 )
+from app.worker import ingestion as worker_ingestion
+from app.worker.ingestion import SettingsVcsClient
 from tests.ingestion.conftest import DIFF, HEAD, FakeClock, FakeVcsClient, make_event, make_snapshot
 
 Factory = Callable[[], Session]
@@ -126,19 +130,98 @@ def test_empty_diff_is_valid(session_factory: Factory, clock: FakeClock) -> None
         assert context.structured_context == {"schema_version": 1, "files": []}
 
 
-def test_write_failure_leaves_no_job_context_repository_or_merge_request(
+def test_deterministic_write_failure_is_terminal_and_leaves_no_partial_rows(
     session_factory: Factory, clock: FakeClock
 ) -> None:
     delivery_id = _accept(session_factory)
     # base_sha exceeds VARCHAR(64): the job insert fails after repository and MR were written.
     client = FakeVcsClient(make_snapshot(base_sha="b" * 100))
 
-    with pytest.raises(DBAPIError):
-        ingest_delivery(session_factory, client, delivery_id, clock=clock)
+    result = ingest_delivery(session_factory, client, delivery_id, clock=clock)
 
+    assert result.outcome is IngestOutcome.FAILED
     for model in (Repository, MergeRequest, ReviewJob, ContextPayload):
         assert _count(session_factory, model) == 0
+    row = _delivery(session_factory, delivery_id)
+    assert (row.status, row.locked_until, row.next_attempt_at) == (
+        VcsDeliveryStatus.FAILED,
+        None,
+        None,
+    )
+    assert row.last_error is not None
+    assert row.last_error.startswith("DataError: ")
+    # The driver message is kept; the SQL and bound parameters are not.
+    assert "[SQL:" not in row.last_error
+    assert "b" * 100 not in row.last_error
+
+
+def test_transient_write_failure_stays_on_the_lease_path(
+    session_factory: Factory, clock: FakeClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    delivery_id = _accept(session_factory)
+
+    def lost_connection(*_: object) -> None:
+        raise OperationalError("INSERT", {}, Exception("connection lost"))
+
+    monkeypatch.setattr(service, "_upsert_repository", lost_connection)
+
+    with pytest.raises(OperationalError):
+        ingest_delivery(session_factory, FakeVcsClient(), delivery_id, clock=clock)
+
     assert _delivery(session_factory, delivery_id).status is VcsDeliveryStatus.PROCESSING
+
+
+def test_unknown_provider_fails_terminally_with_a_recorded_cause(
+    session_factory: Factory, clock: FakeClock
+) -> None:
+    delivery_id = _accept(session_factory, make_event(provider="bitbucket"))
+
+    result = ingest_delivery(session_factory, SettingsVcsClient(), delivery_id, clock=clock)
+
+    assert result.outcome is IngestOutcome.FAILED
+    row = _delivery(session_factory, delivery_id)
+    assert (row.status, row.attempts, row.locked_until) == (VcsDeliveryStatus.FAILED, 1, None)
+    assert row.last_error is not None
+    assert "bitbucket" in row.last_error
+    assert _count(session_factory, ReviewJob) == 0
+
+
+def test_malformed_repository_identity_fails_terminally(
+    session_factory: Factory, clock: FakeClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        worker_ingestion,
+        "settings",
+        replace(settings, github_api_base_url="https://gh.example/api", github_token="t0ken-value"),
+    )
+    delivery_id = _accept(session_factory, make_event(repository_external_id="no-slash"))
+
+    result = ingest_delivery(session_factory, SettingsVcsClient(), delivery_id, clock=clock)
+
+    assert result.outcome is IngestOutcome.FAILED
+    row = _delivery(session_factory, delivery_id)
+    assert row.status is VcsDeliveryStatus.FAILED
+    assert row.last_error is not None
+    assert "owner/name" in row.last_error
+
+
+def test_missing_token_fails_terminally(
+    session_factory: Factory, clock: FakeClock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        worker_ingestion,
+        "settings",
+        replace(settings, github_api_base_url="https://gh.example/api", github_token=""),
+    )
+    delivery_id = _accept(session_factory)
+
+    result = ingest_delivery(session_factory, SettingsVcsClient(), delivery_id, clock=clock)
+
+    assert result.outcome is IngestOutcome.FAILED
+    row = _delivery(session_factory, delivery_id)
+    assert row.status is VcsDeliveryStatus.FAILED
+    assert row.last_error is not None
+    assert "token" in row.last_error
 
 
 def test_already_succeeded_delivery_is_not_reprocessed(

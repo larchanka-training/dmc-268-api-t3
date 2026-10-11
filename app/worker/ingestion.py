@@ -9,14 +9,23 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.ingestion import IngestResult, ingest_delivery
 from app.ingestion.service import utc_now
-from app.vcs import GitHubClient, GitLabClient, PullRequestRef, RevisionSnapshot, VcsClient
+from app.vcs import (
+    GitHubClient,
+    GitLabClient,
+    PullRequestRef,
+    RevisionSnapshot,
+    VcsClient,
+    VcsInvalidRequestError,
+)
 
 
 class SettingsVcsClient:
     """``VcsClient`` that builds the real provider client from settings per call.
 
-    Construction is lazy: a missing token or unknown provider surfaces as an
-    ordinary job failure after the claim, so the row's attempts stay bounded.
+    Construction is lazy: a missing token, unknown provider or malformed
+    repository identity surfaces after the claim as a terminal
+    ``VcsInvalidRequestError``, so the delivery fails with a recorded
+    ``last_error`` instead of being retried.
     """
 
     def fetch_revision(self, ref: PullRequestRef) -> RevisionSnapshot:
@@ -39,7 +48,7 @@ class SettingsVcsClient:
                     client=http,
                 )
             else:
-                raise ValueError(f"Unsupported VCS provider: {ref.provider}")
+                raise VcsInvalidRequestError(f"Unsupported VCS provider: {ref.provider}")
             return client.fetch_revision(ref)
 
 

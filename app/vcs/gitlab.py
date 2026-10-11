@@ -10,6 +10,7 @@ import httpx
 
 from app.vcs.errors import (
     VcsDiffIncompleteError,
+    VcsInvalidRequestError,
     VcsRevisionChangedError,
     VcsUpstreamError,
 )
@@ -70,9 +71,9 @@ class GitLabClient:
         clock: Callable[[], float] = time.time,
     ) -> None:
         if not base_url.startswith(("https://", "http://")):
-            raise ValueError("GitLabClient requires an absolute http(s) base URL")
+            raise VcsInvalidRequestError("GitLabClient requires an absolute http(s) base URL")
         if not token:
-            raise ValueError("GitLabClient requires a token")
+            raise VcsInvalidRequestError("GitLabClient requires a token")
         self._base_url = base_url.rstrip("/")
         self._token = token
         self._timeout = timeout
@@ -84,7 +85,7 @@ class GitLabClient:
         url = self._mr_url(ref)
         expected = ref.expected_head_sha.strip().lower()
         if not expected:
-            raise ValueError("expected_head_sha is required")
+            raise VcsInvalidRequestError("expected_head_sha is required")
 
         first = self._fetch_metadata(url)
         if first.sha.lower() != expected:
@@ -122,9 +123,9 @@ class GitLabClient:
 
     def _mr_url(self, ref: PullRequestRef) -> str:
         if not (ref.repository.isascii() and ref.repository.isdigit()):
-            raise ValueError("repository must be a numeric GitLab project id")
+            raise VcsInvalidRequestError("repository must be a numeric GitLab project id")
         if ref.number <= 0:
-            raise ValueError("merge request iid must be positive")
+            raise VcsInvalidRequestError("merge request iid must be positive")
         return f"{self._base_url}/projects/{int(ref.repository)}/merge_requests/{ref.number}"
 
     def _headers(self) -> dict[str, str]:

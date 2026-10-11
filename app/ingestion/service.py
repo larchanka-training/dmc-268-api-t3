@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import DataError, DBAPIError
 from sqlalchemy.orm import Session
 
 from app.context import DiffParseError, parse_diff
@@ -125,7 +126,10 @@ def redact(message: str) -> str:
 
 
 def _describe(error: Exception) -> str:
-    return f"{type(error).__name__}: {redact(str(error))}"[:LAST_ERROR_LIMIT]
+    # A DBAPIError's str() embeds the SQL and bound parameters (diff text, titles);
+    # keep only the driver's message.
+    message = str(error.orig) if isinstance(error, DBAPIError) else str(error)
+    return f"{type(error).__name__}: {redact(message)}"[:LAST_ERROR_LIMIT]
 
 
 def _is_retryable(error: Exception) -> bool:
@@ -359,8 +363,10 @@ def ingest_delivery(  # pylint: disable=too-many-locals
 
     No DB transaction spans the HTTP fetch: the claim is a short transaction that
     leases the row, and the final write is guarded by that lease. Typed VCS
-    errors and parse errors follow the retry/terminal policy; anything else
-    propagates and the row is recovered when its lease expires.
+    errors, parse errors and deterministic data errors (``DataError``: a value
+    the schema can never store) follow the retry/terminal policy; anything else,
+    including transient database errors, propagates and the row is recovered
+    when its lease expires.
     """
     early, claim = _claim(factory, delivery_id, clock(), lease, max_attempts)
     if claim is None:
@@ -379,5 +385,5 @@ def ingest_delivery(  # pylint: disable=too-many-locals
         if snapshot.head_sha != event.head_sha:
             raise VcsRevisionChangedError("retrieved head differs from the delivery head")
         return _commit_success(factory, delivery_id, claim, snapshot)
-    except (VcsError, DiffParseError) as error:
+    except (VcsError, DiffParseError, DataError) as error:
         return _fail_or_retry(factory, delivery_id, claim, error, clock(), max_attempts)

@@ -16,6 +16,13 @@ class VcsAuthError(VcsError):
     retryable = False
 
 
+class VcsInvalidRequestError(VcsError, ValueError):
+    """Deterministic configuration or input error (missing token, bad repository identity,
+    unknown provider): retrying the same delivery can never succeed."""
+
+    retryable = False
+
+
 class VcsNotFoundError(VcsError):
     retryable = False
 
