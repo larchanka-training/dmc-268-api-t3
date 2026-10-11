@@ -7,4 +7,4 @@
 - [x] Verify 3.2 independently, including concurrency tests; update status; commit.
 - [x] Delegate 3.3 (RQ job + recovery dispatch) to a fresh subagent.
 - [x] Verify 3.3 independently; update status; commit.
-- [ ] Run phase checkpoint checks.
+- [x] Run phase checkpoint checks (local; CI not yet run).
