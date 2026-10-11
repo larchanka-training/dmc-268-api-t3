@@ -101,4 +101,6 @@ Estimated scope: Medium.
 
 - Editing `.github/workflows/ci-cd.yml` (PostgreSQL/Redis services) is required for the integration tests to run in CI. Default in this plan: include it in 3.1 (PostgreSQL) and 3.3 (Redis). Confirm.
 - Recovery loop deployment: separate compose service `recovery` (planned) versus running it inside the worker process. Confirm or accept the default.
+Resolved by the user: CI workflow edits (PostgreSQL in 3.1, Redis in 3.3) approved; recovery runs as a separate compose service `recovery`.
+
 - Provider repository identity format for `Repository.external_id` (numeric id vs full name) is finalized in phase 4 normalization; 3.x treats it as an opaque string.

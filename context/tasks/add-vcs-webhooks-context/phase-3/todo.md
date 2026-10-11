@@ -1,6 +1,6 @@
 # Phase 3 working steps
 
-- [ ] User reviews phase 3 plan and confirms open-question defaults.
+- [x] User reviews phase 3 plan and confirms open-question defaults.
 - [ ] Delegate 3.1 (migration + models + PostgreSQL fixture) to a fresh subagent.
 - [ ] Verify 3.1 independently on PostgreSQL; update OpenSpec status; commit.
 - [ ] Delegate 3.2 (transactional ingestion) to a fresh subagent.
