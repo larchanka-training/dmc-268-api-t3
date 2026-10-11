@@ -4,5 +4,5 @@
 - [x] Delegate 1.1 with full OpenSpec context and this plan.
 - [x] Verify parser foundation and update OpenSpec status.
 - [x] Delegate 1.2 to a fresh subagent.
-- [ ] Verify edge cases and exclusions; update OpenSpec status.
-- [ ] Run phase checkpoint checks.
+- [x] Verify edge cases and exclusions; update OpenSpec status.
+- [x] Run phase checkpoint checks.
