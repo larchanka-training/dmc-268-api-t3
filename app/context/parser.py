@@ -163,7 +163,9 @@ def _skip_binary_patch(lines: list[str], index: int) -> int:
     return index
 
 
-def _hunk(lines: list[str], index: int) -> tuple[DiffHunk, int]:
+def _hunk(  # pylint: disable=too-many-locals
+    lines: list[str], index: int
+) -> tuple[DiffHunk, int]:
     if lines[index].startswith("@@@"):
         raise DiffParseError("Combined diffs are not supported")
     match = _HUNK.fullmatch(lines[index])
@@ -204,7 +206,7 @@ def _hunk(lines: list[str], index: int) -> tuple[DiffHunk, int]:
         if (old_line is not None and old_closed) or (new_line is not None and new_closed):
             raise DiffParseError("Hunk line follows a no-final-newline marker")
         diff_line = DiffLine(kind=kind, content=line[1:], old_line=old_line, new_line=new_line)
-        hunk.lines.append(diff_line)
+        hunk.lines.append(diff_line)  # pylint: disable=no-member
         index += 1
         if index < len(lines) and lines[index].startswith("\\"):
             if lines[index] != _NO_NEWLINE:
@@ -216,7 +218,10 @@ def _hunk(lines: list[str], index: int) -> tuple[DiffHunk, int]:
     return hunk, index
 
 
-def _file(lines: list[str], index: int) -> tuple[DiffFile, int]:
+# Line-oriented git patch state machine; splitting it would scatter shared cursor state.
+def _file(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    lines: list[str], index: int
+) -> tuple[DiffFile, int]:
     header = lines[index]
     if header.startswith(("diff --cc ", "diff --combined ")):
         raise DiffParseError("Combined diffs are not supported")

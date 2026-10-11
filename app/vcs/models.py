@@ -17,7 +17,7 @@ class PullRequestRef:
 
 
 @dataclass(frozen=True)
-class RevisionSnapshot:
+class RevisionSnapshot:  # pylint: disable=too-many-instance-attributes
     provider: str
     repository: str
     number: int

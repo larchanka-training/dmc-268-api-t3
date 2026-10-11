@@ -1,3 +1,5 @@
+# The two adapters intentionally mirror each other behind the shared VcsClient port.
+# pylint: disable=duplicate-code
 import json
 import time
 from collections.abc import Callable
@@ -176,7 +178,7 @@ class GitHubClient:
             head_ref, base_ref = head.get("ref", ""), base.get("ref", "")
         except (ValueError, KeyError, TypeError, AttributeError) as exc:
             raise VcsUpstreamError("Malformed pull request metadata") from exc
-        if (
+        if (  # pylint: disable=too-many-boolean-expressions
             not isinstance(head_sha, str)
             or not isinstance(base_sha, str)
             or not head_sha

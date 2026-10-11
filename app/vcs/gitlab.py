@@ -1,3 +1,5 @@
+# The two adapters intentionally mirror each other behind the shared VcsClient port.
+# pylint: disable=duplicate-code
 import json
 import time
 from collections.abc import Callable
@@ -29,7 +31,7 @@ OVERFLOW_FLAGS = ("overflow", "too_large", "diff_overflow")
 
 
 @dataclass(frozen=True)
-class _Metadata:
+class _Metadata:  # pylint: disable=too-many-instance-attributes
     title: str
     state: str
     sha: str
@@ -156,7 +158,9 @@ class GitLabClient:
             raise classify_error_response(response, rate_limited=limited, retry_after=retry_after)
         return response
 
-    def _fetch_metadata(self, url: str) -> _Metadata:
+    def _fetch_metadata(  # pylint: disable=too-many-locals
+        self, url: str
+    ) -> _Metadata:
         response = self._get(url, MAX_METADATA_BYTES)
         if response.exceeded:
             raise VcsUpstreamError("Metadata response too large", retryable=False)
