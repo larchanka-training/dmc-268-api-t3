@@ -12,9 +12,10 @@ Spec anchors: `specs/vcs-retrieval/spec.md` (bounded retrieval, revision and com
 - Port (`Protocol`) `VcsClient.fetch_revision(ref) -> RevisionSnapshot`. `PullRequestRef` carries provider, repository identity (GitHub `owner/name`; GitLab numeric project id), PR/MR number, and the `expected_head_sha` from the webhook. `RevisionSnapshot` carries normalized metadata (title, head_sha, base_sha, state, and provider-specific refs needed for persistence) and `raw_diff: str`.
 - Trusted origins only: URLs are built from configured API base URLs plus path segments; webhook-provided URLs never reach the client. Redirects are not followed. Repository/project identifiers are URL-quoted.
 - Revision consistency: fetch metadata, fetch diff, re-fetch metadata; head/base identifiers must equal the first read and the `expected_head_sha`, otherwise `VcsRevisionChangedError`. A mismatch with `expected_head_sha` means a newer delivery supersedes this one.
-- Completeness: response size is capped (streamed; abort at the limit) and exceeding it raises a too-large error. Provider truncation/overflow indicators raise `VcsDiffIncompleteError`; a truncated diff is never returned. An empty diff is valid.
+- Size limit is 32,000 tokens (user decision), measured with the existing `app.llm.tokens.approximate_token_count`. Streaming aborts at a hard byte ceiling of `max_tokens * 4 * 4` (4 chars/token, up to 4 UTF-8 bytes/char) so memory stays bounded; after decoding, `approximate_token_count(raw_diff) > 32000` raises `VcsDiffTooLargeError`. An over-limit diff is rejected whole, never truncated.
+- Completeness: the size limit above applies and exceeding it raises a too-large error. Provider truncation/overflow indicators raise `VcsDiffIncompleteError`; a truncated diff is never returned. An empty diff is valid.
 - Typed errors in `app/vcs/errors.py` with a `retryable` flag: auth (401/403 non-throttle), not found (404), rate limited (429 / throttle 403, with retry-after when present), revision changed, diff incomplete/too large, upstream unavailable (5xx, timeouts, transport errors, malformed bodies).
-- Config additions only for retrieval: GitHub/GitLab API base URL, token, request timeout, max diff bytes. Webhook secrets belong to phase 4.
+- Config additions only for retrieval: GitHub/GitLab API base URL, token, request timeout, `vcs_max_diff_tokens` (default 32000). Webhook secrets belong to phase 4.
 - Tokens must never appear in error messages or logs.
 
 ## Task 2.1: GitHub adapter and retrieval foundation
@@ -24,7 +25,7 @@ Description: Create the port, models, error hierarchy, bounded-fetch helper, con
 Acceptance criteria:
 - Metadata and diff are retrieved with `Authorization` and API-version headers from the configured origin only; redirects are rejected.
 - Head/base changing between the two metadata reads, or differing from `expected_head_sha`, raises `VcsRevisionChangedError`.
-- 401/403 -> auth, 404 -> not found, 429/rate-limit 403 -> rate limited, 5xx/timeout/transport error/invalid JSON -> upstream; provider "diff too large" responses and responses above the byte cap raise a non-retryable too-large/incomplete error, never partial text.
+- 401/403 -> auth, 404 -> not found, 429/rate-limit 403 -> rate limited, 5xx/timeout/transport error/invalid JSON -> upstream; provider "diff too large" responses and diffs above 32,000 approximate tokens raise a non-retryable too-large/incomplete error, never partial text.
 - Empty diff returns `raw_diff == ""`; non-UTF-8 body is an explicit error.
 
 Verification: `rtk uv run pytest tests/vcs tests/test_config.py -q` (httpx.MockTransport contract tests), Ruff check/format, `rtk uv run mypy app/vcs app/config.py`, full suite.
@@ -68,10 +69,12 @@ Estimated scope: Medium.
 | Provider diff-limit/overflow signals differ from assumptions (GitHub 406/422 on large diffs; GitLab `changes_count` "1000+", instance diff limits omitting files) | High | Subagent verifies each signal against current provider docs before coding and cites it in the test names; unknown signals fail closed as incomplete. |
 | GitLab `raw_diffs` unavailable on older self-managed versions | Med | Document minimum version in config docs (phase 5); map 404-on-endpoint distinctly from missing MR only if the docs allow; otherwise report as an open question. |
 | Base revision semantics: GitHub `base.sha` is branch tip, diff is against merge-base | Med | Persist both; revision check compares identifiers, not diff content. |
-| Streaming size cap implemented incorrectly yields partial text | High | Test with a body one byte over the cap and with chunked transport. |
+| Streaming size cap implemented incorrectly yields partial text | High | Test a diff just under and just over 32,000 approximate tokens (128,000 chars), a multi-byte body, and chunked transport. |
 | Secrets leaking in exceptions | Med | Tests assert tokens are absent from `str(error)`. |
 
 ## Open Questions
 
 - Should rate-limited and upstream errors be retried inside the adapter, or only surfaced to the phase 3 worker retry policy? Default in this plan: surface only, no internal retries.
 - GitLab project identity for persistence: numeric project id (planned) versus `path_with_namespace`; confirm with phase 3.1 schema when planned.
+
+Resolved by the user: adapters surface errors without internal retries (worker retries in phase 3); diff limit is 32k tokens.
