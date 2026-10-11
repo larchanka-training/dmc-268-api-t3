@@ -9,18 +9,14 @@ def patch(body: str, old: str = "a/code.py", new: str = "b/code.py") -> str:
 
 def test_numbers_content_and_multiple_hunks():
     context = parse_diff(
-        patch(
-            "@@ -2,2 +2,3 @@ section\n same\n-old\n+new\n+extra\n"
-            "@@ -10 +11 @@\n-last\n+next\n"
-        )
+        patch("@@ -2,2 +2,3 @@ section\n same\n-old\n+new\n+extra\n@@ -10 +11 @@\n-last\n+next\n")
     )
     file = context.files[0]
     assert file.change_type == "modification"
     assert file.old_path == file.new_path == "code.py"
     assert file.hunks[0].section == "section"
     assert [
-        (line.kind, line.content, line.old_line, line.new_line)
-        for line in file.hunks[0].lines
+        (line.kind, line.content, line.old_line, line.new_line) for line in file.hunks[0].lines
     ] == [
         ("context", "same", 2, 2),
         ("deletion", "old", 3, None),

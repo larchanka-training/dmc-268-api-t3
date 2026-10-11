@@ -100,7 +100,9 @@ def parse_diff(raw_diff: str) -> DiffContext:
             change_type=(
                 "addition"
                 if old_path is None
-                else "deletion" if new_path is None else "modification"
+                else "deletion"
+                if new_path is None
+                else "modification"
             ),
         )
         index += 1

@@ -1,6 +1,6 @@
 ## 1. Context Level 1
 
-- [ ] 1.1 Define typed context schemas and parse unified diff files, hunks, and line numbers; verify additions, deletions, multiple hunks, empty input, and malformed ranges.
+- [x] 1.1 Define typed context schemas and parse unified diff files, hunks, and line numbers; verify additions, deletions, multiple hunks, empty input, and malformed ranges.
 - [ ] 1.2 Support renames, quoted paths, newline markers, and excluded binary/lock/minified files; verify parser fixtures and rejection of unsupported combined patches.
 
 ## 2. VCS adapters

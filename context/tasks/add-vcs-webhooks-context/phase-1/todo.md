@@ -1,6 +1,6 @@
-# Phase 1 working steps
-
-- [ ] Review phase plan and resolve commit mode.
+- [x] Review phase plan and resolve commit mode.
+- [x] Delegate 1.1 with full OpenSpec context and this plan.
+- [x] Verify parser foundation and update OpenSpec status.
 - [ ] Delegate 1.1 with full OpenSpec context and this plan.
 - [ ] Verify parser foundation and update OpenSpec status.
 - [ ] Delegate 1.2 to a fresh subagent.
