@@ -56,11 +56,11 @@ Estimated scope: Medium.
 
 ## Checkpoint: Phase 2 complete
 
-- [ ] `rtk uv run pytest -q`, Ruff check/format, `mypy app tests` clean.
-- [ ] Both adapters satisfy the same `VcsClient` contract tests (shared parametrized cases where practical).
-- [ ] No test or code path performs real network I/O; no secret appears in error text.
-- [ ] `openspec validate add-vcs-webhooks-context --strict` passes; commit mode: after each task.
-- [ ] Review with the user before planning phase 3.
+- [x] `rtk uv run pytest -q`, Ruff check/format, `mypy app tests` clean.
+- [x] Both adapters satisfy the same `VcsClient` contract tests (shared parametrized cases where practical).
+- [x] No test or code path performs real network I/O; no secret appears in error text.
+- [x] `openspec validate add-vcs-webhooks-context --strict` passes; commit mode: after each task.
+- [x] Review with the user before planning phase 3.
 
 ## Risks and Mitigations
 
@@ -78,3 +78,10 @@ Estimated scope: Medium.
 - GitLab project identity for persistence: numeric project id (planned) versus `path_with_namespace`; confirm with phase 3.1 schema when planned.
 
 Resolved by the user: adapters surface errors without internal retries (worker retries in phase 3); diff limit is 32k tokens.
+
+## Outcome notes (carry into phase 3)
+
+- GitHub: any 406/422 on the diff request is treated as incomplete (provider signal not documented). `diff --git` count is checked against `changed_files`.
+- GitHub `base.sha` is the branch tip; base moving mid-fetch raises non-retryable `VcsRevisionChangedError`. Worker policy decides on re-enqueue.
+- GitLab `raw_diffs` has no pagination or overflow flag; completeness relies on `changes_count` ("1000+" rejected) versus the `diff --git` header count.
+- GitLab empty `changes_count` or unpopulated `diff_refs` on a new MR: `changes_count` problems are non-retryable `VcsDiffIncompleteError`; missing `diff_refs` is retryable `VcsUpstreamError`. Phase 3 may want the empty `changes_count` case retryable.

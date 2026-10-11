@@ -34,6 +34,8 @@ def test_vcs_settings_defaults(monkeypatch):
     for name in (
         "GITHUB_API_BASE_URL",
         "GITHUB_TOKEN",
+        "GITLAB_API_BASE_URL",
+        "GITLAB_TOKEN",
         "VCS_TIMEOUT_SECONDS",
         "VCS_MAX_DIFF_TOKENS",
     ):
@@ -43,6 +45,8 @@ def test_vcs_settings_defaults(monkeypatch):
 
     assert settings.github_api_base_url == "https://api.github.com"
     assert settings.github_token == ""
+    assert settings.gitlab_api_base_url == "https://gitlab.com/api/v4"
+    assert settings.gitlab_token == ""
     assert settings.vcs_timeout_seconds == 30.0
     assert settings.vcs_max_diff_tokens == 32000
 
@@ -50,6 +54,8 @@ def test_vcs_settings_defaults(monkeypatch):
 def test_vcs_settings_read_env(monkeypatch):
     monkeypatch.setenv("GITHUB_API_BASE_URL", "https://ghe.example.com/api/v3")
     monkeypatch.setenv("GITHUB_TOKEN", "tok")
+    monkeypatch.setenv("GITLAB_API_BASE_URL", "https://gl.example.com/api/v4")
+    monkeypatch.setenv("GITLAB_TOKEN", "gltok")
     monkeypatch.setenv("VCS_TIMEOUT_SECONDS", "5.5")
     monkeypatch.setenv("VCS_MAX_DIFF_TOKENS", "1000")
 
@@ -57,5 +63,7 @@ def test_vcs_settings_read_env(monkeypatch):
 
     assert settings.github_api_base_url == "https://ghe.example.com/api/v3"
     assert settings.github_token == "tok"
+    assert settings.gitlab_api_base_url == "https://gl.example.com/api/v4"
+    assert settings.gitlab_token == "gltok"
     assert settings.vcs_timeout_seconds == 5.5
     assert settings.vcs_max_diff_tokens == 1000
