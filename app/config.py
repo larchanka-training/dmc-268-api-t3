@@ -15,6 +15,10 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     eurorouter_api_keys: list[str]
     eurorouter_model: str
     redis_url: str
+    github_api_base_url: str
+    github_token: str
+    vcs_timeout_seconds: float
+    vcs_max_diff_tokens: int
 
     @property
     def database_url(self) -> str:
@@ -39,6 +43,10 @@ def load_settings() -> Settings:
         ],
         eurorouter_model=os.getenv("EUROROUTER_MODEL", "gpt-4o-mini"),
         redis_url=os.getenv("REDIS_URL", "redis://redis:6379/0"),
+        github_api_base_url=os.getenv("GITHUB_API_BASE_URL", "https://api.github.com"),
+        github_token=os.getenv("GITHUB_TOKEN", ""),
+        vcs_timeout_seconds=float(os.getenv("VCS_TIMEOUT_SECONDS", "30")),
+        vcs_max_diff_tokens=int(os.getenv("VCS_MAX_DIFF_TOKENS", "32000")),
     )
 
 

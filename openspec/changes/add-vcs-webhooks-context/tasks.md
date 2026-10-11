@@ -5,7 +5,7 @@
 
 ## 2. VCS adapters
 
-- [ ] 2.1 Implement GitHub metadata/raw-diff retrieval with trusted origins, typed errors, limits, and revision checks; verify HTTP contract tests.
+- [x] 2.1 Implement GitHub metadata/raw-diff retrieval with trusted origins, typed errors, limits, and revision checks; verify HTTP contract tests.
 - [ ] 2.2 Implement GitLab metadata/raw-diff retrieval with completeness and revision checks; verify HTTP contract tests including pagination/overflow behavior where applicable.
 
 ## 3. Durable ingestion
