@@ -1,8 +1,8 @@
 - [x] Review phase plan and resolve commit mode.
 - [x] Delegate 1.1 with full OpenSpec context and this plan.
 - [x] Verify parser foundation and update OpenSpec status.
-- [ ] Delegate 1.1 with full OpenSpec context and this plan.
-- [ ] Verify parser foundation and update OpenSpec status.
-- [ ] Delegate 1.2 to a fresh subagent.
+- [x] Delegate 1.1 with full OpenSpec context and this plan.
+- [x] Verify parser foundation and update OpenSpec status.
+- [x] Delegate 1.2 to a fresh subagent.
 - [ ] Verify edge cases and exclusions; update OpenSpec status.
 - [ ] Run phase checkpoint checks.

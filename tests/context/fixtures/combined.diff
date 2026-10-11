@@ -1,0 +1,7 @@
+diff --cc merged.py
+index 1111111,2222222..3333333
+--- a/merged.py
++++ b/merged.py
+@@@ -1,2 -1,2 +1,3 @@@
+  common
+++both

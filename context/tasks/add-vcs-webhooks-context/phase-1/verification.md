@@ -1,13 +1,17 @@
 # Phase 1 verification status
 
-Task 1.1 is verified and closed. Task 1.2 has not started.
+Tasks 1.1 and 1.2 are verified and closed.
 
-## 1.1 checks (all passed)
+## Checks (all passed)
 
-- `uv sync --locked` completed.
-- `uv run pytest tests/context -q`: 16 passed; full suite: 67 passed.
-- `ruff check` and `ruff format --check` clean on app/context and tests/context.
+- `uv run pytest -q`: 87 passed.
+- `ruff check` and `ruff format --check` clean on app and tests.
 - `mypy app/context`: no issues.
-- `openspec validate --all --strict` passed.
+- `openspec validate add-vcs-webhooks-context --strict` passed.
 
-Commit mode: after each task. Next: delegate 1.2 to a fresh subagent.
+## 1.2 judgment calls
+
+- `copy from` / `copy to` patches are rejected as unsupported (schema has no copy change type).
+- Mode-only changes are accepted as `modification` with no hunks.
+
+Commit mode: after each task.
