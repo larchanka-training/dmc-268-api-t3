@@ -68,6 +68,8 @@ uv run pylint app
 uv run pytest
 ```
 
+PostgreSQL tests (`tests/db`, migrations and constraints) run only when `TEST_DATABASE_URL` points at a throwaway database, e.g. `postgresql+psycopg://postgres:test@localhost:55432/postgres`; they wipe its `public` schema and are skipped when it is unset.
+
 ## Environment variables
 
 See `.env.example`. Copy it to `.env` and adjust as needed:
