@@ -12,7 +12,7 @@
 
 - [x] 3.1 Add structured-context and delivery/revision persistence migrations; verify upgrade/downgrade and database uniqueness.
 - [x] 3.2 Implement transactional ingestion and duplicate delivery/source-event handling; verify sequential and concurrent PostgreSQL tests.
-- [ ] 3.3 Add RQ ingestion and recovery dispatch with bounded retries; verify queue outages and crash-window recovery.
+- [x] 3.3 Add RQ ingestion and recovery dispatch with bounded retries; verify queue outages and crash-window recovery.
 
 ## 4. Webhook transport
 

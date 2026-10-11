@@ -39,6 +39,17 @@ services:
     environment: *app-env
     depends_on: *app-deps
 
+  # Re-enqueues accepted-but-undispatched, retry-due and lease-expired deliveries.
+  recovery:
+    build: .
+    command: ["python", "-m", "app.worker.recovery"]
+    env_file:
+      - path: .env
+        required: false
+    environment: *app-env
+    depends_on: *app-deps
+    restart: unless-stopped
+
   # One-shot: applies migrations, then exits; api/worker wait for it.
   migrate:
     build: .

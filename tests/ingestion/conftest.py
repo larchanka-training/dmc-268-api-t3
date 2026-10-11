@@ -1,9 +1,12 @@
+import os
 from collections.abc import Callable, Iterator
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from alembic.config import Config
+from fakeredis import FakeRedis, FakeServer
+from redis import Redis
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -100,3 +103,25 @@ def session_factory(
     command.upgrade(alembic_config, "head")
     alembic_config.attributes["connection"].commit()
     yield sessionmaker(bind=pg_engine, expire_on_commit=False)
+
+
+@pytest.fixture(params=["fake", "real"])
+def redis_server(request: pytest.FixtureRequest) -> Iterator[Redis]:
+    """The same scenarios run on fakeredis and on a real Redis (TEST_REDIS_URL).
+
+    The real database is flushed before and after: point TEST_REDIS_URL at a
+    throwaway instance.
+    """
+    if request.param == "fake":
+        yield FakeRedis(server=FakeServer())
+        return
+    url = os.getenv("TEST_REDIS_URL")
+    if not url:
+        pytest.skip("TEST_REDIS_URL is not set; real Redis tests need a throwaway instance")
+    connection = Redis.from_url(url)
+    connection.flushdb()
+    try:
+        yield connection
+    finally:
+        connection.flushdb()
+        connection.close()

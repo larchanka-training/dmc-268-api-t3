@@ -21,6 +21,8 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     gitlab_token: str
     vcs_timeout_seconds: float
     vcs_max_diff_tokens: int
+    recovery_interval_seconds: float
+    recovery_stale_after_seconds: float
 
     @property
     def database_url(self) -> str:
@@ -51,6 +53,8 @@ def load_settings() -> Settings:
         gitlab_token=os.getenv("GITLAB_TOKEN", ""),
         vcs_timeout_seconds=float(os.getenv("VCS_TIMEOUT_SECONDS", "30")),
         vcs_max_diff_tokens=int(os.getenv("VCS_MAX_DIFF_TOKENS", "32000")),
+        recovery_interval_seconds=float(os.getenv("RECOVERY_INTERVAL_SECONDS", "30")),
+        recovery_stale_after_seconds=float(os.getenv("RECOVERY_STALE_AFTER_SECONDS", "300")),
     )
 
 
