@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Webhook smoke against the running compose stack with the smoke override:
+# Webhook smoke against the running compose stack with the smoke override. Needs a FRESH stack
+# (`docker compose down -v` first): leftover rows or a stale volume can make the run misleading.
 #   COMPOSE_FILE=docker-compose.yml:docker-compose.smoke.yml docker compose up -d --build --wait
 #   scripts/smoke_webhooks.sh
 # Same script in CI and locally. Simulated deliveries signed locally with the THROWAWAY test
@@ -23,11 +24,11 @@ fail() {
 }
 
 api_env() {
-  docker compose exec -T api printenv "$1" | tr -d '\r\n'
+  docker compose exec -T api printenv "$1" | tr -d '\r\n' || fail "cannot read $1 from the api container (is the stack up?)"
 }
 
 psql_q() {
-  docker compose exec -T postgres psql -U app -d app -tA -c "$1" | tr -d '\r'
+  docker compose exec -T postgres psql -U app -d app -tA -c "$1" | tr -d '\r' || fail "psql query failed (is postgres up?)"
 }
 
 # Secrets come from the compose override (single source of truth) into the environment of the
@@ -39,7 +40,9 @@ SMOKE_WRONG_SECRET="smoke-wrong-secret-not-real"
 export GITHUB_WEBHOOK_SECRET GITLAB_WEBHOOK_SIGNING_TOKEN GITLAB_WEBHOOK_SECRET_TOKEN SMOKE_WRONG_SECRET
 
 replay() {
-  python3 scripts/replay_webhook.py "$@" >/dev/null || fail "replay_webhook.py $1 (case: ${CASE})"
+  local out
+  out="$(python3 scripts/replay_webhook.py "$@" 2>&1)" \
+    || fail "replay_webhook.py $1 (case: ${CASE}): $out"
 }
 
 row_count() { # provider delivery_id
@@ -66,7 +69,7 @@ context_check() { # repository external id, MR number, expected head, expected b
     join merge_requests m on m.id = j.merge_request_id
     join repositories r on r.id = m.repository_id
     where r.external_id = '$1' and m.external_id = '$2'")"
-  [ "$row" = "$3|$4|t|t|t" ] || fail "context for $1#$2 unexpected (rows: $(printf '%s' "$row" | wc -l), got '${row//[^|tf]/}')"
+  [ "$row" = "$3|$4|t|t|t" ] || fail "context for $1#$2 unexpected (rows: $(printf '%s\n' "$row" | grep -c .), got '${row//[^|tf]/}')"
   [ "$(psql_q "select count(*) from vcs_deliveries where repository_external_id = '${1#*:}' and pr_number = $2 and provider = '${1%%:*}'")" = "1" ] \
     || fail "expected exactly one delivery row for $1#$2"
 }

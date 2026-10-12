@@ -65,7 +65,9 @@ Both repos have `.github/workflows/ci-cd.yml`:
    deploys from either repo.
 5. **Smoke test:** HTTPS `/api/healthcheck`, the frontend, the HTTP→HTTPS redirect, and
    `python -m app.worker.smoke` inside the API container (enqueues a job and waits for the
-   worker to complete it).
+   worker to complete it), an unsigned `POST /api/webhooks/github` that must answer `401`
+   (routing through Caddy and fail-closed authentication), and a check that `dmc268-recovery`
+   is running and has not restarted.
 
 Key properties (each one was tested locally):
 
@@ -161,7 +163,7 @@ and webhook setup — [`VCS_SETUP.md`](VCS_SETUP.md). GitHub forbids names start
 hence the `VCS_` prefix; create them in the repo settings or remap them in `ci-cd.yml`.
 
 Adding a new secret for the app: add it as a repo secret, add a Terraform variable
-(`infra/variables.tf`, `sensitive = true`), put it into `local.app_env` in `infra/main.tf`,
+(`infra/variables.tf`, `sensitive = true`), put it into the matching role list in `infra/main.tf` (`api_env` for webhook verification, `worker_env` for VCS reads; `app_env_base` is shared by every app container, `migrate` and `recovery` get only the base),
 and pass it in the "Stage config and secrets" step of `ci-cd.yml`.
 
 ## 5. Server layout

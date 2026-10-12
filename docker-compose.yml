@@ -97,7 +97,7 @@ services:
     environment:
       NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
     ports:
-      - "4040:4040"
+      - "127.0.0.1:4040:4040"
     depends_on:
       api:
         condition: service_healthy

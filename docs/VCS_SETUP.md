@@ -78,7 +78,7 @@ Two authentication modes, selected by `GITLAB_WEBHOOK_AUTH`:
 - `signed` (default): GitLab signs the request with the Standard Webhooks protocol. Put the signing token (`whsec_...`) into `GITLAB_WEBHOOK_SIGNING_TOKEN`. This is the GitLab 19.0+ mode. The timestamp must be within 300 seconds of the server clock.
 - `token`: for older installations. Set `GITLAB_WEBHOOK_AUTH=token` and put the secret token configured in GitLab into `GITLAB_WEBHOOK_SECRET_TOKEN`; GitLab sends it in `X-Gitlab-Token`.
 
-A GitLab delivery needs a `webhook-id` or `Idempotency-Key` header (GitLab 17.4 and later). Without it the request is rejected with `400`. An unknown `GITLAB_WEBHOOK_AUTH` value is a configuration error and gives `401`.
+A GitLab delivery needs a delivery id header (GitLab 17.4 and later). In `signed` mode it is `webhook-id`, part of the signature: a request without it (for example one carrying only `Idempotency-Key`) fails authentication and gets `401`. In `token` mode it is `webhook-id` or `Idempotency-Key`, and without both the request is rejected with `400`. An unknown `GITLAB_WEBHOOK_AUTH` value is a configuration error and gives `401`.
 
 An empty secret is never accepted. If a secret is not configured, the endpoint answers `401` to everything (fail-closed). This is also the state of a production deploy that has no `VCS_*` secrets.
 
@@ -103,7 +103,7 @@ Settings are read in `app/config.py`; local values go in `.env` (see `.env.examp
 | `REDIS_URL` | queue (shared with the existing worker) | `redis://redis:6379/0` | code default | no |
 | `NGROK_DOMAIN`, `NGROK_AUTHTOKEN` | local tunnel only | empty | not deployed | no |
 
-Constants in the code that are also **provisional** (SYSTEM_DESIGN §14–15 still has these decisions open): the 300 s freshness window for signed GitLab requests, the 25 MiB webhook body limit, the delivery attempt limit (5) with a 30 s exponential backoff capped at 1 h, and the 5 min processing lease. They are not configurable yet.
+Constants in the code that are also **provisional** (SYSTEM_DESIGN §14–15 still has these decisions open): the 300 s freshness window for signed GitLab requests, the 25 MiB webhook body limit, the delivery attempt limit (5) with a 30 s exponential backoff capped at 1 h (a provider `Retry-After` can extend a wait up to 24 h, `RETRY_AFTER_CAP` in `app/ingestion/service.py`), and the 5 min processing lease. They are not configurable yet.
 
 GitHub does not allow secret or variable names that start with `GITHUB_`, which is why the repository names carry the `VCS_` prefix.
 
@@ -123,7 +123,7 @@ Responses of `POST /webhooks/{github,gitlab}` (`app/api/webhooks.py`). Successfu
 | `200` | `accepted`: a new delivery was recorded and a job enqueued |
 | `200` | `duplicate`: the delivery id was seen before, or the same revision was already recorded; nothing new is enqueued |
 | `200` | `ignored`: authentic but unsupported event or action; nothing is stored |
-| `400` | invalid JSON (including a form-encoded GitHub body) or a payload that fails field validation, including a missing or invalid delivery id header (`X-GitHub-Delivery`; `webhook-id` or `Idempotency-Key` for GitLab) |
+| `400` | invalid JSON (including a form-encoded GitHub body) or a payload that fails field validation, including a missing or invalid delivery id header (`X-GitHub-Delivery` for GitHub; for GitLab only in `token` mode, where neither `webhook-id` nor `Idempotency-Key` is present; in `signed` mode a missing `webhook-id` is `401`) |
 | `401` | authentication failed or the secret is not configured (the same response, so configuration state is not leaked) |
 | `413` | body larger than 25 MiB |
 | `503` | the database is unavailable; the provider should redeliver |
@@ -136,10 +136,13 @@ A queue (Redis) outage does not change the response: the delivery is already com
 
 These prove the service behavior with locally signed deliveries. They do **not** prove that GitHub or GitLab accepts the configuration, that the bot token works against the real API, or that your webhook settings are correct.
 
-- `scripts/replay_webhook.py` sends a payload file with locally built headers. The secret is read from an environment variable (default: the backend's variable name, or `--secret-env NAME`) and never printed. Flags: `{github,gitlab}`, `--url`, `--payload`, `--event`, `--delivery-id`, `--gitlab-mode {signed,token}`, `--secret-env`, `--unsigned`, `--timestamp-offset`, `--expect-status`, `--expect`. Run `python3 scripts/replay_webhook.py --help`. Example fixtures are in `tests/webhooks/fixtures/`.
+- `scripts/replay_webhook.py` sends a payload file with locally built headers. The secret is read from an environment variable (default: the backend's variable name, or `--secret-env NAME`) and never printed. Flags: `{github,gitlab}`, `--url`, `--payload`, `--event`, `--delivery-id`, `--gitlab-mode {signed,token}`, `--secret-env`, `--unsigned`, `--timestamp-offset`, `--expect-status`, `--expect`. Exit codes: `0` ok, `1` response mismatch, `2` usage or configuration error, `3` network or transport failure. Run `python3 scripts/replay_webhook.py --help`. Example fixtures are in `tests/webhooks/fixtures/`.
 - `scripts/smoke_webhooks.sh` runs the full path against the compose stack with `docker-compose.smoke.yml` (throwaway test secrets, a fake VCS upstream): signed GitHub and GitLab deliveries become `succeeded` with stored context, redelivery gives `duplicate`, bad signatures give `401`, `ping` gives `ignored`. The same script runs in the CI `compose` job:
 
+  The script needs a fresh stack, hence the leading `down -v`:
+
   ```bash
+  docker compose down -v
   COMPOSE_FILE=docker-compose.yml:docker-compose.smoke.yml docker compose up -d --build --wait
   scripts/smoke_webhooks.sh
   docker compose down -v
@@ -162,7 +165,7 @@ Needs the bot account, its token in `.env` (`GITHUB_TOKEN`), a webhook secret in
 
    `status` must reach `succeeded` (the smoke script compares `lower(status)`); `last_error` must be empty. Do not copy diffs or tokens into issues or chat.
 
-Troubleshooting: `401` in Recent Deliveries is a secret mismatch or an empty `GITHUB_WEBHOOK_SECRET`; `400` is usually the form-encoded content type; a `502` or an ngrok error page means the API is not running on port 8000; status `pending` for a long time means the `recovery` or `worker` container is not running.
+Troubleshooting: `401` in Recent Deliveries is a secret mismatch or an empty `GITHUB_WEBHOOK_SECRET`; `400` is usually the form-encoded content type; a `502` or an ngrok error page means the API is not running on port 8000; status `pending` for a long time: first check `last_error` and `next_attempt_at` of the row (a delivery waiting out a retry backoff or a `Retry-After` of up to 24 h is expected to stay `pending`), and only then conclude that the `recovery` or `worker` container is not running.
 
 Result of the live check is recorded separately from the simulated checks (who and when, in `planning/phase-5/verification.md` of the change).
 

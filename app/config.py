@@ -7,18 +7,18 @@ from urllib.parse import quote
 class Settings:  # pylint: disable=too-many-instance-attributes
     postgres_db: str
     postgres_user: str
-    postgres_password: str
+    postgres_password: str = field(repr=False)
     postgres_host: str
     postgres_port: int
     ollama_host: str
     eurorouter_base_url: str
-    eurorouter_api_keys: list[str]
+    eurorouter_api_keys: list[str] = field(repr=False)
     eurorouter_model: str
     redis_url: str
     github_api_base_url: str
-    github_token: str
+    github_token: str = field(repr=False)
     gitlab_api_base_url: str
-    gitlab_token: str
+    gitlab_token: str = field(repr=False)
     vcs_timeout_seconds: float
     vcs_max_diff_tokens: int
     recovery_interval_seconds: float

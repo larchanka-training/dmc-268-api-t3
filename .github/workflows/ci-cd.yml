@@ -256,7 +256,9 @@ jobs:
           ssh deploy-target "docker exec dmc268-api python -m app.worker.smoke"
           # Unsigned webhook: proves routing through Caddy and fail-closed auth (no secret needed).
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' "https://${SITE_ADDRESS}/api/webhooks/github")" = 401
-          test "$(ssh deploy-target "docker inspect -f '{{.State.Running}}' dmc268-recovery")" = true
+          # Recovery must be up and not crash-looping (give a crash-looping container time to restart).
+          sleep 10
+          test "$(ssh deploy-target "docker inspect -f '{{.State.Running}} {{.RestartCount}}' dmc268-recovery")" = "true 0"
 
       # Hygiene only: in-use images are never pruned, and a week of old tags stays for rollback.
       - name: Prune old images

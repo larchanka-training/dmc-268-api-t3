@@ -9,6 +9,7 @@ import argparse
 import base64
 import hashlib
 import hmac
+import http.client
 import json
 import os
 import sys
@@ -22,6 +23,7 @@ from pathlib import Path
 EXIT_OK = 0
 EXIT_MISMATCH = 1
 EXIT_USAGE = 2
+EXIT_TRANSPORT = 3
 
 _KEY_PREFIX = "whsec_"
 _DEFAULT_EVENTS = {"github": "pull_request", "gitlab": "Merge Request Hook"}
@@ -47,7 +49,7 @@ def build_github_headers(
     }
 
 
-def build_gitlab_headers(  # pylint: disable=too-many-arguments
+def build_gitlab_headers(
     mode: str,
     secret: str,
     body: bytes,
@@ -102,7 +104,8 @@ def _parser() -> argparse.ArgumentParser:
         description=(
             "Send a payload file to a webhook endpoint with locally built authentication "
             "headers. This is a simulated delivery, not a live provider check. The secret is "
-            "read from an environment variable and never printed."
+            "read from an environment variable and never printed. Exit codes: 0 ok, "
+            "1 response mismatch, 2 usage or configuration error, 3 network/transport failure."
         ),
     )
     parser.add_argument("provider", choices=["github", "gitlab"])
@@ -147,7 +150,7 @@ def _read_payload(path: str) -> bytes:
         raise UsageError(f"cannot read payload file: {exc.strerror}") from exc
 
 
-def _headers_for(  # pylint: disable=too-many-arguments
+def _headers_for(
     args: argparse.Namespace, body: bytes, delivery_id: str, env: Mapping[str, str], now: float
 ) -> dict[str, str]:
     event = args.event or _DEFAULT_EVENTS[args.provider]
@@ -198,9 +201,9 @@ def main(
     print("SIMULATED delivery signed locally; this is not a live provider check.")
     try:
         status, raw = send(args.url, body, headers)
-    except (OSError, urllib.error.URLError) as exc:
+    except (OSError, urllib.error.URLError, http.client.HTTPException) as exc:
         print(f"error: request failed: {type(exc).__name__}", file=sys.stderr)
-        return EXIT_USAGE
+        return EXIT_TRANSPORT
     shown = raw[:_MAX_PRINTED_RESPONSE].decode("utf-8", errors="replace")
     print(f"delivery_id={delivery_id} http_status={status} response={shown}")
     if status != args.expect_status:

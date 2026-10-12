@@ -24,7 +24,7 @@ How a change goes from a task to production. Architectural rules — [`AGENTS.md
 
 ## 2. Running locally
 
-Full stack (PostgreSQL, Redis, one-shot `migrate`, API, worker):
+Full stack (PostgreSQL, Redis, one-shot `migrate`, API, worker, `recovery`):
 
 ```bash
 docker compose up

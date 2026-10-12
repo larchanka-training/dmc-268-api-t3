@@ -1,4 +1,5 @@
 import base64
+import http.client
 import time
 from collections.abc import Mapping
 from pathlib import Path
@@ -287,3 +288,22 @@ def test_gitlab_signed_in_the_app_and_stale_timestamp_rejected(api: Api, tmp_pat
     stale = [*args, "--timestamp-offset", "-600", "--expect-status", "401"]
     assert main(stale, env=env, send=send, now=time.time) == 0
     assert main(args, env=env, send=send, now=time.time) == 0
+
+
+@pytest.mark.parametrize(
+    "error", [ConnectionRefusedError("refused"), http.client.RemoteDisconnected("closed")]
+)
+def test_main_send_failure_exits_3_without_leaking(tmp_path, capsys, error):
+    def failing_send(url, body, headers):
+        raise error
+
+    code = main(
+        ["github", "--url", "u", "--payload", _payload(tmp_path)],
+        env={"GITHUB_WEBHOOK_SECRET": GITHUB_SECRET},
+        send=failing_send,
+    )
+
+    assert code == 3
+    captured = capsys.readouterr()
+    assert "request failed" in captured.err
+    assert GITHUB_SECRET not in captured.out + captured.err

@@ -45,7 +45,7 @@ _GITLAB_METADATA = {
 
 
 class _Handler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:  # pylint: disable=invalid-name
+    def do_GET(self) -> None:
         path = self.path.split("?", 1)[0]
         if _GITHUB_PULL.match(path):
             if self.headers.get("Accept") == _GITHUB_DIFF_ACCEPT:
@@ -69,7 +69,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def log_message(self, format: str, *args: object) -> None:  # pylint: disable=redefined-builtin
+    def log_message(self, format: str, *args: object) -> None:
         # Paths only; request headers (tokens) are never logged.
         sys.stderr.write(f"vcs-stub: {self.command} {self.path.split('?', 1)[0]}\n")
 

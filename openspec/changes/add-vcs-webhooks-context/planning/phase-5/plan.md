@@ -209,7 +209,7 @@ Reconciliation checklist:
 - [ ] Current specs that will be merged on archive (`openspec/specs/background-worker`, `review-data`): note any statement the new capabilities make stale (for example, the worker now also runs the ingestion job). Report it; do not edit specs outside the change.
 - [ ] Security sweep: no secrets in the repository (`git grep -nE 'whsec_|ghp_|github_pat_|glpat-'` returns only test-only values), and no secrets, signatures, diffs or bodies in log statements added by this change.
 - [ ] Phase-4 residual risks are documented (5.3b §7) and the recovery container is present in `infra/main.tf`.
-- [ ] Open divergences listed for the parent: `ReviewJob` vs `ReviewRun`, the provisional event matrix, provisional limits.
+- [ ] Open divergences listed for the parent: `ReviewJob` vs `ReviewRun`; the ingestion service (`app/ingestion/`) importing SQLAlchemy (and RQ in `dispatch.py`) directly, which diverges from AGENTS.md ("Services import neither FastAPI nor SQLAlchemy") and `design.md` ports/adapters, pending a team decision, with the follow-up to extract a repository/port; the provisional event matrix; provisional limits.
 
 Acceptance criteria: every check has passed (or is explicitly reported as not runnable, with the reason); every reconciliation item is resolved or listed as a blocker; `verification.md` written. Archival is recommended only if there are no blockers.
 

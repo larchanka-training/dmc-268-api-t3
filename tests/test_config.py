@@ -101,3 +101,31 @@ def test_webhook_settings_read_env_and_hide_secrets_in_repr(monkeypatch):
     text = repr(settings)
     for secret in ("gh-secret-value", "whsec_signing-value", "gl-token-value"):
         assert secret not in text
+
+
+def test_settings_repr_hides_secret_values(monkeypatch):
+    secrets = {
+        "GITHUB_TOKEN": "gh-token-value",
+        "GITLAB_TOKEN": "gl-token-value",
+        "POSTGRES_PASSWORD": "pg-password-value",
+        "EUROROUTER_API_KEYS": "key-one-value,key-two-value",
+        "GITHUB_WEBHOOK_SECRET": "gh-webhook-value",
+        "GITLAB_WEBHOOK_SIGNING_TOKEN": "gl-signing-value",
+        "GITLAB_WEBHOOK_SECRET_TOKEN": "gl-secret-value",
+    }
+    for name, value in secrets.items():
+        monkeypatch.setenv(name, value)
+
+    rendered = repr(load_settings())
+
+    for value in (
+        "gh-token-value",
+        "gl-token-value",
+        "pg-password-value",
+        "key-one-value",
+        "key-two-value",
+        "gh-webhook-value",
+        "gl-signing-value",
+        "gl-secret-value",
+    ):
+        assert value not in rendered

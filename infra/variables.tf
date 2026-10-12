@@ -56,6 +56,11 @@ variable "gitlab_webhook_auth" {
   description = "GitLab webhook authentication mode: \"signed\" or \"token\"."
   type        = string
   default     = "signed"
+
+  validation {
+    condition     = contains(["signed", "token"], var.gitlab_webhook_auth)
+    error_message = "gitlab_webhook_auth must be \"signed\" or \"token\"."
+  }
 }
 
 variable "gitlab_webhook_signing_token" {
