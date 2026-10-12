@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 import threading
+import traceback
 import uuid
 from collections.abc import Callable
 from dataclasses import replace
@@ -10,9 +11,11 @@ from pathlib import Path
 
 import pytest
 from fakeredis import FakeRedis, FakeServer
+from psycopg import OperationalError as DriverOperationalError
 from redis import Redis
 from rq import Queue, SimpleWorker
-from sqlalchemy import func, select
+from sqlalchemy import Engine, event, func, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -29,6 +32,31 @@ from tests.ingestion.conftest import FakeClock, FakeVcsClient, make_event, make_
 ROOT = Path(__file__).resolve().parents[2]
 Factory = Callable[[], Session]
 STALE = timedelta(minutes=5)
+
+
+def test_database_failure_traceback_does_not_expose_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable_session() -> Session:
+        raise OperationalError(
+            "INSERT INTO context_payloads (diff_text) VALUES (%(diff_text)s)",
+            {"diff_text": "BOUND_SOURCE_MARKER"},
+            Exception("driver echoed DRIVER_SOURCE_MARKER"),
+        )
+
+    monkeypatch.setattr(
+        ingestion_job,
+        "_runtime",
+        lambda: ingestion_job.Runtime(unavailable_session, FakeVcsClient(), FakeClock()),
+    )
+    with pytest.raises(RuntimeError) as caught:
+        ingestion_job.run_ingestion(str(uuid.uuid4()))
+
+    rendered = "".join(traceback.format_exception(caught.value))
+    assert "BOUND_SOURCE_MARKER" not in rendered
+    assert "DRIVER_SOURCE_MARKER" not in rendered
+    assert "INSERT INTO" not in rendered
+    assert "Ingestion database operation failed" in rendered
 
 
 @pytest.fixture()
@@ -186,6 +214,63 @@ def test_worker_crash_window_is_recovered_by_dispatcher(
 
     assert _status(session_factory, delivery_id) == VcsDeliveryStatus.SUCCEEDED
     assert _count(session_factory, ReviewJob) == 1
+
+
+def test_context_database_failure_is_safe_in_rq_and_recovers_after_lease_expiry(
+    session_factory: Factory,
+    pg_engine: Engine,
+    clock: FakeClock,
+    use_runtime: Callable[[FakeVcsClient], None],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    queue = get_queue(FakeRedis())
+    delivery_id = _accept(session_factory)
+    snapshot = make_snapshot(
+        raw_diff=make_snapshot().raw_diff.replace("+new", "+BOUND_SOURCE_MARKER")
+    )
+    use_runtime(FakeVcsClient(snapshot))
+
+    def fail_context_write(
+        _cursor: object, statement: str, parameters: object, _context: object
+    ) -> None:
+        if statement.startswith("INSERT INTO context_payloads"):
+            assert "BOUND_SOURCE_MARKER" in str(parameters)
+            raise DriverOperationalError("driver echoed DRIVER_SOURCE_MARKER")
+
+    enqueue_delivery(session_factory, delivery_id, queue=queue, clock=clock)
+    event.listen(pg_engine, "do_execute", fail_context_write)
+    try:
+        _work(queue)
+    finally:
+        event.remove(pg_engine, "do_execute", fail_context_write)
+
+    job = queue.fetch_job(f"ingest-{delivery_id}")
+    assert job is not None
+    assert job.is_failed
+    result = job.latest_result()
+    assert result is not None
+    assert result.exc_string is not None
+    assert "Ingestion database operation failed" in result.exc_string
+    for marker in ("BOUND_SOURCE_MARKER", "DRIVER_SOURCE_MARKER", "INSERT INTO"):
+        assert marker not in result.exc_string
+        assert marker not in caplog.text
+    with session_factory() as session:
+        row = session.get_one(VcsDelivery, delivery_id)
+        assert row.status == VcsDeliveryStatus.PROCESSING
+        assert row.attempts == 1
+        assert row.locked_until == clock.now + STALE
+        assert row.next_attempt_at is None
+        assert row.last_error is None
+    assert _count(session_factory, ReviewJob) == 0
+    assert _count(session_factory, ContextPayload) == 0
+    assert dispatch_pending(session_factory, queue, clock=clock, stale_after=STALE) == 0
+
+    clock.advance(minutes=6)
+    assert dispatch_pending(session_factory, queue, clock=clock, stale_after=STALE) == 1
+    _work(queue)
+    assert _status(session_factory, delivery_id) == VcsDeliveryStatus.SUCCEEDED
+    assert _count(session_factory, ReviewJob) == 1
+    assert _count(session_factory, ContextPayload) == 1
 
 
 def test_retries_are_bounded_and_dispatcher_honors_next_attempt_at(

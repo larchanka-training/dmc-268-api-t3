@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import httpx
+from sqlalchemy.exc import StatementError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -68,11 +69,17 @@ def _runtime() -> Runtime:
 
 def run_ingestion(delivery_id: str) -> str:
     """RQ job: ingest one inbox delivery; harmless if it is not claimable."""
-    runtime = _runtime()
-    result: IngestResult = ingest_delivery(
-        runtime.session_factory,
-        runtime.client,
-        uuid.UUID(delivery_id),
-        clock=runtime.clock,
-    )
+    try:
+        runtime = _runtime()
+        result: IngestResult = ingest_delivery(
+            runtime.session_factory,
+            runtime.client,
+            uuid.UUID(delivery_id),
+            clock=runtime.clock,
+        )
+    except StatementError:
+        # SQLAlchemy errors embed bound source/context; driver messages may echo
+        # it too. RQ formats exception chains, so suppress the original entirely.
+        # Keep the job failed and leave recovery to the existing lease policy.
+        raise RuntimeError("Ingestion database operation failed") from None
     return str(result.outcome)
