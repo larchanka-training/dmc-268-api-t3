@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, func
+from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -23,6 +23,9 @@ class ReviewJobStatus(enum.StrEnum):
 
 class ReviewJob(Base):
     __tablename__ = "review_jobs"
+    __table_args__ = (
+        UniqueConstraint("merge_request_id", "head_sha", name="uq_review_jobs_merge_request_head"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     merge_request_id: Mapped[uuid.UUID] = mapped_column(
@@ -32,6 +35,8 @@ class ReviewJob(Base):
         Enum(ReviewJobStatus, native_enum=False, validate_strings=True),
         default=ReviewJobStatus.PENDING,
     )
+    head_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    base_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

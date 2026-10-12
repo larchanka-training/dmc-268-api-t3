@@ -1,7 +1,10 @@
 locals {
   prefix = "dmc268"
 
-  app_env = [
+  # Shared by every app container. Each role adds only the secrets it reads:
+  # api verifies webhooks, worker reads from the VCS; migrate and recovery need neither
+  # (they use only the database and Redis settings).
+  app_env_base = [
     "POSTGRES_DB=app",
     "POSTGRES_USER=app",
     "POSTGRES_PASSWORD=${var.postgres_password}",
@@ -12,6 +15,18 @@ locals {
     "EUROROUTER_API_KEYS=${var.eurorouter_api_keys}",
     "EUROROUTER_MODEL=${var.eurorouter_model}",
   ]
+
+  api_env = concat(local.app_env_base, [
+    "GITHUB_WEBHOOK_SECRET=${var.github_webhook_secret}",
+    "GITLAB_WEBHOOK_AUTH=${var.gitlab_webhook_auth}",
+    "GITLAB_WEBHOOK_SIGNING_TOKEN=${var.gitlab_webhook_signing_token}",
+    "GITLAB_WEBHOOK_SECRET_TOKEN=${var.gitlab_webhook_secret_token}",
+  ])
+
+  worker_env = concat(local.app_env_base, [
+    "GITHUB_TOKEN=${var.github_token}",
+    "GITLAB_TOKEN=${var.gitlab_token}",
+  ])
 }
 
 resource "docker_network" "app" {
@@ -130,7 +145,7 @@ resource "docker_container" "migrate" {
   name     = "${local.prefix}-migrate"
   image    = docker_image.api.image_id
   command  = ["alembic", "upgrade", "head"]
-  env      = local.app_env
+  env      = local.app_env_base
   must_run = false
   attach   = true
   logs     = true
@@ -159,7 +174,7 @@ resource "docker_container" "api" {
   restart = "unless-stopped"
   # Caddy strips /api before proxying; --root-path makes /api/docs resolve.
   command = ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--root-path", "/api"]
-  env     = local.app_env
+  env     = local.api_env
 
   networks_advanced {
     name    = docker_network.app.id
@@ -184,7 +199,22 @@ resource "docker_container" "worker" {
   image   = docker_image.api.image_id
   restart = "unless-stopped"
   command = ["python", "-m", "app.worker"]
-  env     = local.app_env
+  env     = local.worker_env
+
+  networks_advanced {
+    name = docker_network.app.id
+  }
+
+  depends_on = [docker_container.migrate, docker_container.redis]
+}
+
+# Re-enqueues accepted-but-undispatched, retry-due and lease-expired deliveries.
+resource "docker_container" "recovery" {
+  name    = "${local.prefix}-recovery"
+  image   = docker_image.api.image_id
+  restart = "unless-stopped"
+  command = ["python", "-m", "app.worker.recovery"]
+  env     = local.app_env_base
 
   networks_advanced {
     name = docker_network.app.id

@@ -48,7 +48,7 @@ known-first-party = ["app"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["app", "tests", "alembic"]
+files = ["app", "tests", "alembic", "scripts"]
 # tests/ has no __init__.py; without this mypy doesn't name those modules
 # "tests.*" and the override below never matches.
 explicit_package_bases = true

@@ -19,19 +19,21 @@ staging and no `develop` branch.
 ```
 Internet :80/:443 ──► dmc268-caddy ──/api/*──► dmc268-api ──► dmc268-postgres
                                    └─ /*  ──► dmc268-web     dmc268-worker ──► dmc268-redis
+                                                         dmc268-recovery ─► dmc268-postgres, dmc268-redis
 ```
 
 | Container | Image | Role |
 |---|---|---|
 | `dmc268-caddy` | `caddy:2.10-alpine` | the **only** published ports (80, 443); HTTPS + routing |
 | `dmc268-api` | backend image | FastAPI, `uvicorn --root-path /api` |
-| `dmc268-worker` | backend image, command `python -m app.worker` | RQ worker (currently runs only the placeholder `ping` job; real review jobs come with issue #13) |
+| `dmc268-worker` | backend image, command `python -m app.worker` | RQ worker (runs the webhook ingestion job and the placeholder `ping` job; review jobs come with issue #13) |
+| `dmc268-recovery` | backend image, command `python -m app.worker.recovery` | re-enqueues webhook deliveries that were stored but not dispatched, are due for retry or lost their lease; `restart: unless-stopped` |
 | `dmc268-migrate` | backend image, command `alembic upgrade head` | one-shot, re-created on every deploy |
 | `dmc268-web` | frontend image (nginx-unprivileged, port 8080) | static files + SPA fallback |
 | `dmc268-postgres` | `postgres:16-alpine` | volume `dmc268_postgres_data` |
 | `dmc268-redis` | `redis:8-alpine` | volume `dmc268_redis_data`; queue |
 
-Postgres, Redis, API, worker and web have **no** published ports; they talk over the
+Postgres, Redis, API, worker, recovery and web have **no** published ports; they talk over the
 Docker network `dmc268`.
 
 ### URLs
@@ -63,7 +65,9 @@ Both repos have `.github/workflows/ci-cd.yml`:
    deploys from either repo.
 5. **Smoke test:** HTTPS `/api/healthcheck`, the frontend, the HTTP→HTTPS redirect, and
    `python -m app.worker.smoke` inside the API container (enqueues a job and waits for the
-   worker to complete it).
+   worker to complete it), an unsigned `POST /api/webhooks/github` that must answer `401`
+   (routing through Caddy and fail-closed authentication), and a check that `dmc268-recovery`
+   is running and has not restarted.
 
 Key properties (each one was tested locally):
 
@@ -142,13 +146,24 @@ arguments on the server.
 | `AI_DMC268_URL` | org variable | → `EUROROUTER_BASE_URL` |
 | `DEPLOY_SSH_KEY` | repo secret, **both repos** | private key of the `deploy` user, used by CI only |
 | `POSTGRES_PASSWORD` | repo secret, backend | database password. Postgres reads it only when its volume is first created, so **do not rotate it** without also running `ALTER USER app PASSWORD '...'` inside `dmc268-postgres` |
+| `VCS_GITHUB_TOKEN` | optional repo secret | bot token → `GITHUB_TOKEN` |
+| `VCS_GITHUB_WEBHOOK_SECRET` | optional repo secret | → `GITHUB_WEBHOOK_SECRET` |
+| `VCS_GITLAB_TOKEN` | optional repo secret | → `GITLAB_TOKEN` |
+| `VCS_GITLAB_WEBHOOK_SIGNING_TOKEN` | optional repo secret | → `GITLAB_WEBHOOK_SIGNING_TOKEN` |
+| `VCS_GITLAB_WEBHOOK_SECRET_TOKEN` | optional repo secret | → `GITLAB_WEBHOOK_SECRET_TOKEN` |
+| `VCS_GITLAB_WEBHOOK_AUTH` | optional repo variable | `signed` (default when empty) or `token` → `GITLAB_WEBHOOK_AUTH` |
 | `SITE_ADDRESS` | optional repo variable, both repos | real domain instead of the sslip.io name |
 
 Application settings are read from environment variables in `app/config.py`; the full list
 is in the README. Database credentials are URL-escaped, so any password characters work.
 
+The `VCS_*` secrets and the variable are optional: the deploy succeeds without them and the
+webhook endpoints answer `401` (fail-closed) until they are set. Bot account, token permissions
+and webhook setup — [`VCS_SETUP.md`](VCS_SETUP.md). GitHub forbids names starting with `GITHUB_`,
+hence the `VCS_` prefix; create them in the repo settings or remap them in `ci-cd.yml`.
+
 Adding a new secret for the app: add it as a repo secret, add a Terraform variable
-(`infra/variables.tf`, `sensitive = true`), put it into `local.app_env` in `infra/main.tf`,
+(`infra/variables.tf`, `sensitive = true`), put it into the matching role list in `infra/main.tf` (`api_env` for webhook verification, `worker_env` for VCS reads; `app_env_base` is shared by every app container, `migrate` and `recovery` get only the base),
 and pass it in the "Stage config and secrets" step of `ci-cd.yml`.
 
 ## 5. Server layout
@@ -170,7 +185,7 @@ Useful commands (as `deploy`):
 
 ```bash
 docker ps
-docker logs --tail 200 dmc268-api        # also: dmc268-worker, dmc268-migrate, dmc268-caddy
+docker logs --tail 200 dmc268-api        # also: dmc268-worker, dmc268-recovery, dmc268-migrate, dmc268-caddy
 docker exec dmc268-api python -m app.worker.smoke && echo worker-ok
 docker exec dmc268-postgres psql -U app -d app
 docker exec dmc268-redis redis-cli llen rq:queue:default   # queued jobs
@@ -207,7 +222,7 @@ needs to be shared — use option 1 or 3.
 - [ ] New DevOps added to the GitHub repos with admin rights (needed to manage secrets/variables).
 - [ ] Their GitHub SSH key added with "Add SSH access"; they can `ssh deploy@77.237.236.234`.
 - [ ] They have the root password (or know who does).
-- [ ] They have read §2 and §3, and ran a deploy-neutral check: `docker ps` shows 6 containers.
+- [ ] They have read §2 and §3, and ran a deploy-neutral check: `docker ps` shows 7 containers.
 - [ ] Old DevOps's key removed from `~deploy/.ssh/authorized_keys` if they should no longer have access.
 
 ## 7. Local development
@@ -230,7 +245,8 @@ strict, pylint, whitespace) — they auto-fix files on the first run, so re-stag
 
 Known limitations:
 
-- The worker only knows the placeholder `ping` job until issue #13 lands.
+- The worker knows only the webhook ingestion job and the placeholder `ping` job until issue #13 lands.
+- Webhook deliveries stored but not yet dispatched are sent to the queue only by `dmc268-recovery`; if it is down they stay `pending`. Other residual risks — [`VCS_SETUP.md` §8](VCS_SETUP.md#8-residual-risks).
 - `deploy` is in the `docker` group (root-equivalent) — acceptable for a course project.
 - Terraform state is a single file on the server (no backup).
 - Single server, no redundancy. A brief delay (≤ 30 s of held requests) occurs during backend deploys.
@@ -248,4 +264,6 @@ Known limitations:
 | Site unreachable after a bad `SITE_ADDRESS` (HTTP redirects to an HTTPS name with no certificate) | set `SITE_ADDRESS` back to a working name (or the sslip.io one) and re-run the deploy; as a last resort set it to `:80` for plain HTTP |
 | Frontend deploy says "Backend infra is not deployed" | merge/deploy the backend repo first |
 | Port 5355 open in the post-deploy check of other teams' setups | not applicable here, but the bootstrap disables LLMNR/mDNS anyway |
+| Webhook deliveries from the provider get `401` | the matching `VCS_*` secret is not set or differs from the provider's webhook secret (also the GitLab mode: `VCS_GITLAB_WEBHOOK_AUTH`); GitHub must send `application/json`. See [`VCS_SETUP.md`](VCS_SETUP.md) |
+| A delivery stays `pending` in `vcs_deliveries` | Check `last_error` and `next_attempt_at` first: retry backoff or provider `Retry-After` can keep it pending. If it is due, check `dmc268-recovery` and `dmc268-worker` (`docker ps`, `docker logs dmc268-recovery`) |
 | `terraform` says a resource "has lifecycle.prevent_destroy" | intended; the database volume can't be removed through Terraform |

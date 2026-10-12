@@ -31,6 +31,52 @@ variable "eurorouter_model" {
   default = "gpt-4o-mini"
 }
 
+variable "github_token" {
+  description = "GitHub API token of the bot account. Empty keeps VCS reads failing closed."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "github_webhook_secret" {
+  description = "HMAC secret of the GitHub webhook. Empty keeps /webhooks/github at 401."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "gitlab_token" {
+  description = "GitLab API token. Empty keeps VCS reads failing closed."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "gitlab_webhook_auth" {
+  description = "GitLab webhook authentication mode: \"signed\" or \"token\"."
+  type        = string
+  default     = "signed"
+
+  validation {
+    condition     = contains(["signed", "token"], var.gitlab_webhook_auth)
+    error_message = "gitlab_webhook_auth must be \"signed\" or \"token\"."
+  }
+}
+
+variable "gitlab_webhook_signing_token" {
+  description = "GitLab webhook signing token (signed mode). Empty keeps /webhooks/gitlab at 401."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "gitlab_webhook_secret_token" {
+  description = "GitLab webhook secret token (token mode). Empty keeps /webhooks/gitlab at 401."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "site_address" {
   description = "Caddy site address. A hostname (e.g. 77-237-236-234.sslip.io) enables HTTPS with a Let's Encrypt certificate; \":80\" serves plain HTTP on any host."
   type        = string

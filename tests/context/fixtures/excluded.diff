@@ -1,0 +1,41 @@
+diff --git a/image.png b/image.png
+index 1111111..2222222 100644
+Binary files a/image.png and b/image.png differ
+diff --git a/data.bin b/data.bin
+new file mode 100644
+index 0000000..2222222
+GIT binary patch
+literal 8
+Pc$@<N0RaI40~i1$1^@s6
+
+literal 0
+HcmV?d00001
+
+diff --git a/web/package-lock.json b/web/package-lock.json
+index 1111111..2222222 100644
+--- a/web/package-lock.json
++++ b/web/package-lock.json
+@@ -1 +1 @@
+-{}
++{"a":1}
+diff --git a/static/app.min.js b/static/app.min.js
+index 1111111..2222222 100644
+--- a/static/app.min.js
++++ b/static/app.min.js
+@@ -1 +1 @@
+-a
++b
+diff --git a/static/mod.min.mjs b/static/mod.min.mjs
+deleted file mode 100644
+index 1111111..0000000
+--- a/static/mod.min.mjs
++++ /dev/null
+@@ -1 +0,0 @@
+-gone
+diff --git a/src/real.py b/src/real.py
+index 1111111..2222222 100644
+--- a/src/real.py
++++ b/src/real.py
+@@ -1 +1 @@
+-a
++b

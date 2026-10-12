@@ -39,6 +39,17 @@ services:
     environment: *app-env
     depends_on: *app-deps
 
+  # Re-enqueues accepted-but-undispatched, retry-due and lease-expired deliveries.
+  recovery:
+    build: .
+    command: ["python", "-m", "app.worker.recovery"]
+    env_file:
+      - path: .env
+        required: false
+    environment: *app-env
+    depends_on: *app-deps
+    restart: unless-stopped
+
   # One-shot: applies migrations, then exits; api/worker wait for it.
   migrate:
     build: .
@@ -76,6 +87,21 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # Optional public tunnel for real GitHub webhook deliveries (docs/WORKFLOW.md §2).
+  # Starts only with `docker compose --profile tunnel up`.
+  ngrok:
+    image: ngrok/ngrok:3-alpine
+    profiles: ["tunnel"]
+    command: ["http", "--url=${NGROK_DOMAIN:-}", "api:8000"]
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    ports:
+      - "127.0.0.1:4040:4040"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres_data:

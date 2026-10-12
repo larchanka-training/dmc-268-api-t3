@@ -1,0 +1,44 @@
+# CI / local smoke override for the webhook flow. Used together with docker-compose.yml:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.smoke.yml docker compose up -d --build --wait
+#   scripts/smoke_webhooks.sh
+# Never used for deploy. Every secret below is a THROWAWAY TEST VALUE, not a real credential.
+services:
+  # Fake GitHub/GitLab upstream (scripts/vcs_stub.py); same image, script mounted read-only.
+  vcs-stub:
+    build: .
+    command: ["python", "/stub/vcs_stub.py"]
+    volumes:
+      - ./scripts:/stub:ro
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/repos/octo/repo/pulls/42')
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+  api:
+    environment: &smoke-env
+      GITHUB_API_BASE_URL: http://vcs-stub:8080
+      GITLAB_API_BASE_URL: http://vcs-stub:8080/api/v4
+      # THROWAWAY TEST VALUES - not real secrets.
+      GITHUB_TOKEN: smoke-github-token-not-real
+      GITLAB_TOKEN: smoke-gitlab-token-not-real
+      GITHUB_WEBHOOK_SECRET: smoke-github-secret-not-real
+      GITLAB_WEBHOOK_AUTH: signed
+      # "whsec_" + base64("smoke-gitlab-signing-key-not-real")
+      GITLAB_WEBHOOK_SIGNING_TOKEN: whsec_c21va2UtZ2l0bGFiLXNpZ25pbmcta2V5LW5vdC1yZWFs
+      GITLAB_WEBHOOK_SECRET_TOKEN: smoke-gitlab-secret-token-not-real
+    depends_on: &smoke-deps
+      vcs-stub:
+        condition: service_healthy
+
+  worker:
+    environment: *smoke-env
+    depends_on: *smoke-deps
+
+  recovery:
+    environment: *smoke-env
+    depends_on: *smoke-deps

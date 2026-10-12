@@ -17,6 +17,30 @@ jobs:
     name: Lint, types, tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://postgres:test@localhost:5432/postgres
+      TEST_REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
@@ -39,11 +63,15 @@ jobs:
     name: docker compose smoke
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Adds the fake VCS upstream and THROWAWAY test secrets (not real credentials).
+      COMPOSE_FILE: docker-compose.yml:docker-compose.smoke.yml
     steps:
       - uses: actions/checkout@v7
       - run: docker compose up -d --build --wait --wait-timeout 180
       - run: curl -fsS http://localhost:8000/healthcheck
       - run: docker compose exec -T api python -m app.worker.smoke
+      - run: scripts/smoke_webhooks.sh
       - if: failure()
         run: docker compose logs
       - if: always()
@@ -169,6 +197,13 @@ jobs:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           EUROROUTER_API_KEYS: ${{ secrets.AI_DMC268_T3 }}
           EUROROUTER_BASE_URL: ${{ vars.AI_DMC268_URL }}
+          # Optional: when unset the webhook endpoints stay fail-closed (401); the deploy still succeeds.
+          VCS_GITHUB_TOKEN: ${{ secrets.VCS_GITHUB_TOKEN }}
+          VCS_GITHUB_WEBHOOK_SECRET: ${{ secrets.VCS_GITHUB_WEBHOOK_SECRET }}
+          VCS_GITLAB_TOKEN: ${{ secrets.VCS_GITLAB_TOKEN }}
+          VCS_GITLAB_WEBHOOK_AUTH: ${{ vars.VCS_GITLAB_WEBHOOK_AUTH }}
+          VCS_GITLAB_WEBHOOK_SIGNING_TOKEN: ${{ secrets.VCS_GITLAB_WEBHOOK_SIGNING_TOKEN }}
+          VCS_GITLAB_WEBHOOK_SECRET_TOKEN: ${{ secrets.VCS_GITLAB_WEBHOOK_SECRET_TOKEN }}
         run: |
           set -euo pipefail
           : "${POSTGRES_PASSWORD:?repo secret POSTGRES_PASSWORD is not set}"
@@ -184,9 +219,19 @@ jobs:
             --arg eurorouter_api_keys "$EUROROUTER_API_KEYS" \
             --arg eurorouter_base_url "$EUROROUTER_BASE_URL" \
             --arg site_address "$SITE_ADDRESS" \
+            --arg github_token "$VCS_GITHUB_TOKEN" \
+            --arg github_webhook_secret "$VCS_GITHUB_WEBHOOK_SECRET" \
+            --arg gitlab_token "$VCS_GITLAB_TOKEN" \
+            --arg gitlab_webhook_auth "${VCS_GITLAB_WEBHOOK_AUTH:-signed}" \
+            --arg gitlab_webhook_signing_token "$VCS_GITLAB_WEBHOOK_SIGNING_TOKEN" \
+            --arg gitlab_webhook_secret_token "$VCS_GITLAB_WEBHOOK_SECRET_TOKEN" \
             '{api_image: $api_image, postgres_password: $postgres_password,
               eurorouter_api_keys: $eurorouter_api_keys, eurorouter_base_url: $eurorouter_base_url,
-              site_address: $site_address}' \
+              site_address: $site_address,
+              github_token: $github_token, github_webhook_secret: $github_webhook_secret,
+              gitlab_token: $gitlab_token, gitlab_webhook_auth: $gitlab_webhook_auth,
+              gitlab_webhook_signing_token: $gitlab_webhook_signing_token,
+              gitlab_webhook_secret_token: $gitlab_webhook_secret_token}' \
             | ssh deploy-target "umask 077 && cat > $STAGE/api.auto.tfvars.json"
 
       # deploy.sh: flock (shared with the frontend repo's deploy), config promotion,
@@ -209,6 +254,11 @@ jobs:
           # Plain HTTP must redirect to HTTPS.
           test "$(curl -s -o /dev/null -w '%{http_code}' "http://${SITE_ADDRESS}/")" = 308
           ssh deploy-target "docker exec dmc268-api python -m app.worker.smoke"
+          # Unsigned webhook: proves routing through Caddy and fail-closed auth (no secret needed).
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' "https://${SITE_ADDRESS}/api/webhooks/github")" = 401
+          # Recovery must be up and not crash-looping (give a crash-looping container time to restart).
+          sleep 10
+          test "$(ssh deploy-target "docker inspect -f '{{.State.Running}} {{.RestartCount}}' dmc268-recovery")" = "true 0"
 
       # Hygiene only: in-use images are never pruned, and a week of old tags stays for rollback.
       - name: Prune old images
