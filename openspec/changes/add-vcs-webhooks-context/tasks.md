@@ -21,7 +21,7 @@
 
 ## 5. Acceptance and documentation
 
-- [ ] 5.1 Add signed replay script and CI smoke coverage; verify backend-to-context flow and negative authentication cases.
+- [x] 5.1 Add signed replay script and CI smoke coverage; verify backend-to-context flow and negative authentication cases.
 - [x] 5.2 Add the optional ngrok tunnel as an opt-in `tunnel` docker compose profile and a host command, with local-only `NGROK_DOMAIN`/`NGROK_AUTHTOKEN` configuration and WORKFLOW instructions; verify `docker compose config` with and without the profile.
 - [ ] 5.3 Document bot account setup, token permissions, configuration, and architecture; verify instructions against implemented contracts and report live-check availability.
 - [ ] 5.4 Run required quality/integration checks, reconcile artifacts, and archive the completed change only when all requirements are satisfied.

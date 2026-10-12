@@ -63,11 +63,15 @@ jobs:
     name: docker compose smoke
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Adds the fake VCS upstream and THROWAWAY test secrets (not real credentials).
+      COMPOSE_FILE: docker-compose.yml:docker-compose.smoke.yml
     steps:
       - uses: actions/checkout@v7
       - run: docker compose up -d --build --wait --wait-timeout 180
       - run: curl -fsS http://localhost:8000/healthcheck
       - run: docker compose exec -T api python -m app.worker.smoke
+      - run: scripts/smoke_webhooks.sh
       - if: failure()
         run: docker compose logs
       - if: always()
