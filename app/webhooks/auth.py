@@ -9,6 +9,7 @@ import re
 from collections.abc import Mapping
 
 from app.webhooks.errors import WebhookAuthError
+from app.webhooks.headers import get_header
 
 logger = logging.getLogger(__name__)
 
@@ -16,18 +17,6 @@ GITLAB_TIMESTAMP_TOLERANCE_SECONDS = 300
 _GITHUB_PREFIX = "sha256="
 _GITHUB_DIGEST = re.compile(r"[0-9a-fA-F]{64}")
 _GITLAB_KEY_PREFIX = "whsec_"
-
-
-def get_header(headers: Mapping[str, str], name: str) -> str | None:
-    """Case-insensitive header lookup."""
-    value = headers.get(name)
-    if value is not None:
-        return value
-    lowered = name.lower()
-    for key, candidate in headers.items():
-        if key.lower() == lowered:
-            return candidate
-    return None
 
 
 def _equal(left: str, right: str) -> bool:

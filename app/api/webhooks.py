@@ -2,6 +2,7 @@
 
 import functools
 import logging
+import re
 import time
 from collections.abc import Callable
 from typing import Annotated
@@ -9,7 +10,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request
 from redis import Redis
 from rq import Queue
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import InterfaceError, OperationalError
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
@@ -30,6 +32,8 @@ router = APIRouter(prefix="/webhooks")
 MAX_BODY_BYTES = 25 * 1024 * 1024
 # A blackholed Redis must not push the response past GitHub's 10 s limit.
 REDIS_TIMEOUT_SECONDS = 2.0
+
+_ASCII_DIGITS = re.compile(r"[0-9]+")
 
 SessionFactory = Callable[[], Session]
 
@@ -63,7 +67,11 @@ def get_webhook_queue(settings: Annotated[Settings, Depends(get_settings)]) -> Q
 
 async def _read_body(request: Request) -> bytes:
     declared = request.headers.get("content-length")
-    if declared is not None and declared.isdigit() and int(declared) > MAX_BODY_BYTES:
+    if (
+        declared is not None
+        and _ASCII_DIGITS.fullmatch(declared)
+        and int(declared) > MAX_BODY_BYTES
+    ):
         raise HTTPException(status_code=413, detail="payload too large")
     chunks: list[bytes] = []
     size = 0
@@ -116,7 +124,7 @@ async def _handle(
         return {"status": "ignored"}
     try:
         result = await run_in_threadpool(accept_and_dispatch, factory, event, queue=queue)
-    except OperationalError as exc:
+    except (OperationalError, InterfaceError, PoolTimeoutError) as exc:
         logger.error("Webhook not accepted: database unavailable: provider=%s", provider)
         raise HTTPException(status_code=503, detail="service unavailable") from exc
     logger.info(

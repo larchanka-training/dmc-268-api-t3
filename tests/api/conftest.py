@@ -92,8 +92,11 @@ def forbidden_factory() -> NoReturn:
     pytest.fail("the database must not be touched for this request")
 
 
-class _UnavailableSession:
-    def __enter__(self) -> "_UnavailableSession":
+class _FailingSession:
+    def __init__(self, error: Exception) -> None:
+        self._error = error
+
+    def __enter__(self) -> "_FailingSession":
         return self
 
     def __exit__(self, *_: object) -> None:
@@ -101,13 +104,17 @@ class _UnavailableSession:
 
     def __getattr__(self, name: str) -> Callable[..., NoReturn]:
         def fail(*_: object, **__: object) -> NoReturn:
-            raise OperationalError("SELECT 1", {}, Exception("connection refused"))
+            raise self._error
 
         return fail
 
 
-def unavailable_factory() -> _UnavailableSession:
-    return _UnavailableSession()
+def failing_factory(error: Exception) -> Callable[[], _FailingSession]:
+    return lambda: _FailingSession(error)
+
+
+def unavailable_factory() -> _FailingSession:
+    return _FailingSession(OperationalError("SELECT 1", {}, Exception("connection refused")))
 
 
 @dataclass

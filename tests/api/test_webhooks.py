@@ -1,18 +1,22 @@
+import asyncio
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, MutableMapping
 from typing import Any
 
 import pytest
 from redis import Redis
+from sqlalchemy import exc as sa_exc
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api import webhooks
+from app.main import app
 from app.models import VcsDelivery, VcsDeliveryStatus
 from app.queue import get_queue
 from tests.api.conftest import (
     GITHUB_SECRET,
     Api,
+    failing_factory,
     fixture_bytes,
     github_headers,
     gitlab_signed_headers,
@@ -164,6 +168,16 @@ def test_github_invalid_supported_payload_is_400(api: Api, body: bytes) -> None:
     assert api.queue.job_ids == []
 
 
+@pytest.mark.parametrize("bad", ["a\\u0000b", "a\\ud800b"], ids=["nul", "lone-surrogate"])
+def test_string_field_the_database_cannot_store_is_400(api: Api, bad: str) -> None:
+    body = GH_OPENED.replace(b"Add feature", bad.encode())
+
+    response = _github(api, body)
+
+    assert response.status_code == 400
+    assert api.queue.job_ids == []
+
+
 def test_gitlab_delivery_without_an_id_is_400(api: Api) -> None:
     api.use_settings(gitlab_webhook_auth="token")
 
@@ -212,6 +226,67 @@ def test_database_outage_is_503_without_a_2xx(api: Api) -> None:
 
     assert response.status_code == 503
     assert api.queue.job_ids == []
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        sa_exc.OperationalError("SELECT 1", {}, Exception("down")),
+        sa_exc.InterfaceError("SELECT 1", {}, Exception("closed")),
+        sa_exc.TimeoutError("QueuePool limit reached"),
+    ],
+    ids=["operational", "interface", "pool-timeout"],
+)
+def test_transient_database_failures_are_503(api: Api, error: Exception) -> None:
+    api.use_factory(failing_factory(error))
+
+    assert _github(api).status_code == 503
+    assert api.queue.job_ids == []
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        sa_exc.DataError("INSERT", {}, Exception("bad data")),
+        sa_exc.IntegrityError("INSERT", {}, Exception("constraint")),
+    ],
+    ids=["data", "integrity"],
+)
+def test_non_transient_database_errors_are_not_503(api: Api, error: Exception) -> None:
+    api.use_factory(failing_factory(error))
+
+    with pytest.raises(type(error)):
+        _github(api)
+
+
+def test_non_ascii_digit_content_length_is_not_a_server_error(api: Api) -> None:
+    # "\xb2" (superscript two) satisfies str.isdigit() but not int(). The test client
+    # rewrites Content-Length, so drive the ASGI app with a hand-built request.
+    sent: list[MutableMapping[str, Any]] = []
+
+    async def receive() -> dict[str, Any]:
+        return {"type": "http.request", "body": b"x", "more_body": False}
+
+    async def send(message: MutableMapping[str, Any]) -> None:
+        sent.append(message)
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "POST",
+        "path": "/webhooks/github",
+        "raw_path": b"/webhooks/github",
+        "query_string": b"",
+        "headers": [(b"content-length", b"\xb2")],
+        "client": ("testclient", 1),
+        "server": ("testserver", 80),
+        "scheme": "http",
+    }
+
+    asyncio.run(app(scope, receive, send))
+
+    assert sent[0]["status"] == 401
 
 
 # --- durable acceptance (PostgreSQL) -------------------------------------------
@@ -333,6 +408,17 @@ def test_ignored_invalid_and_unauthenticated_requests_leave_no_rows(
     _github(pg_api, b"{}")
     pg_api.client.post("/webhooks/github", content=GH_OPENED)
 
+    assert _count(session_factory) == 0
+    assert pg_api.queue.job_ids == []
+
+
+@pytest.mark.parametrize("bad", ["a\\u0000b", "a\\ud800b"], ids=["nul", "lone-surrogate"])
+def test_unstorable_string_is_400_and_leaves_no_row(
+    pg_api: Api, session_factory: Factory, bad: str
+) -> None:
+    response = _github(pg_api, GH_OPENED.replace(b"Add feature", bad.encode()))
+
+    assert response.status_code == 400
     assert _count(session_factory) == 0
     assert pg_api.queue.job_ids == []
 

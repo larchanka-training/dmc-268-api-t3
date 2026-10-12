@@ -2,10 +2,10 @@
 
 from collections.abc import Mapping
 
-from app.ingestion import VcsEvent
+from app.ingestion.events import VcsEvent
 from app.webhooks import payload as p
-from app.webhooks.auth import get_header
 from app.webhooks.events import IgnoredEvent
+from app.webhooks.headers import get_header
 
 
 def _delivery(headers: Mapping[str, str]) -> str:
