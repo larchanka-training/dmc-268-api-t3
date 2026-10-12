@@ -88,6 +88,20 @@ services:
       timeout: 5s
       retries: 5
 
+  # Optional public tunnel for real GitHub webhook deliveries (docs/WORKFLOW.md §2).
+  # Starts only with `docker compose --profile tunnel up`.
+  ngrok:
+    image: ngrok/ngrok:3-alpine
+    profiles: ["tunnel"]
+    command: ["http", "--url=${NGROK_DOMAIN:-}", "api:8000"]
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    ports:
+      - "4040:4040"
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:

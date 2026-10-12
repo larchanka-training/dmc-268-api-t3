@@ -45,6 +45,33 @@ uv run uvicorn app.main:app --reload
 
 Ollama runs externally (`OLLAMA_HOST`); Eurorouter credentials go into `.env` (`EUROROUTER_*`). Variables — the table in [`README.md`](../README.md).
 
+### Real GitHub webhook deliveries (ngrok)
+
+GitHub must reach `POST /webhooks/github` over a public HTTPS URL. Locally this is an optional [ngrok](https://ngrok.com/) tunnel to the API on port 8000. Each developer uses their own free static domain; it lives only in `.env` (`NGROK_DOMAIN`, without `https://`).
+
+One-time setup: create an ngrok account and a static domain in the ngrok dashboard (**Domains**), put the domain into `NGROK_DOMAIN`, and point the repository webhook at it:
+
+- **Payload URL:** `https://<NGROK_DOMAIN>/webhooks/github`;
+- **Content type:** `application/json`;
+- **Secret:** the value of `GITHUB_WEBHOOK_SECRET`;
+- **Events:** Pull requests only.
+
+**Option A — tunnel together with the stack in Docker.** Put the ngrok authtoken into `NGROK_AUTHTOKEN` in `.env`, then:
+
+```bash
+docker compose --profile tunnel up
+```
+
+The `ngrok` service starts after the API is healthy and forwards to `api:8000`. Without `--profile tunnel` it does not start, so plain `docker compose up` is unchanged.
+
+**Option B — ngrok on the host** (also for the API run with `uvicorn`). Install it and register the authtoken once (`brew install ngrok`, `ngrok config add-authtoken <token>`), start the API, then in a separate terminal:
+
+```bash
+ngrok http --url=$(grep ^NGROK_DOMAIN= .env | cut -d= -f2) 8000
+```
+
+The command runs until stopped; an agent should start it as a background process. In both options the inspector at `http://127.0.0.1:4040` shows every delivery and response. In GitHub, **Settings → Webhooks → Recent Deliveries** shows the provider side and has **Redeliver**: `401` means a secret mismatch, `502`/an ngrok error page means the API is not running on 8000.
+
 ## 3. Checks
 
 Before considering a task done — the same as CI runs:

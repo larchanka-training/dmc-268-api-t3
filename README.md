@@ -86,6 +86,8 @@ See `.env.example`. Copy it to `.env` and adjust as needed:
 | `EUROROUTER_BASE_URL` | Eurorouter API base URL | empty |
 | `EUROROUTER_API_KEYS` | Comma-separated Eurorouter API keys | empty |
 | `EUROROUTER_MODEL` | Eurorouter model name | `gpt-4o-mini` |
+| `NGROK_DOMAIN` | Local only: personal ngrok static domain for real webhook deliveries | empty |
+| `NGROK_AUTHTOKEN` | Local only: ngrok authtoken for the `tunnel` compose profile | empty |
 
 ## Deployment
 
