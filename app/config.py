@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import quote
 
 
@@ -23,6 +23,10 @@ class Settings:  # pylint: disable=too-many-instance-attributes
     vcs_max_diff_tokens: int
     recovery_interval_seconds: float
     recovery_stale_after_seconds: float
+    github_webhook_secret: str = field(default="", repr=False)
+    gitlab_webhook_auth: str = "signed"
+    gitlab_webhook_signing_token: str = field(default="", repr=False)
+    gitlab_webhook_secret_token: str = field(default="", repr=False)
 
     @property
     def database_url(self) -> str:
@@ -55,6 +59,10 @@ def load_settings() -> Settings:
         vcs_max_diff_tokens=int(os.getenv("VCS_MAX_DIFF_TOKENS", "32000")),
         recovery_interval_seconds=float(os.getenv("RECOVERY_INTERVAL_SECONDS", "30")),
         recovery_stale_after_seconds=float(os.getenv("RECOVERY_STALE_AFTER_SECONDS", "300")),
+        github_webhook_secret=os.getenv("GITHUB_WEBHOOK_SECRET", ""),
+        gitlab_webhook_auth=os.getenv("GITLAB_WEBHOOK_AUTH", "signed"),
+        gitlab_webhook_signing_token=os.getenv("GITLAB_WEBHOOK_SIGNING_TOKEN", ""),
+        gitlab_webhook_secret_token=os.getenv("GITLAB_WEBHOOK_SECRET_TOKEN", ""),
     )
 
 

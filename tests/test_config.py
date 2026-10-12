@@ -67,3 +67,37 @@ def test_vcs_settings_read_env(monkeypatch):
     assert settings.gitlab_token == "gltok"
     assert settings.vcs_timeout_seconds == 5.5
     assert settings.vcs_max_diff_tokens == 1000
+
+
+def test_webhook_settings_defaults(monkeypatch):
+    for name in (
+        "GITHUB_WEBHOOK_SECRET",
+        "GITLAB_WEBHOOK_AUTH",
+        "GITLAB_WEBHOOK_SIGNING_TOKEN",
+        "GITLAB_WEBHOOK_SECRET_TOKEN",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    settings = load_settings()
+
+    assert settings.github_webhook_secret == ""
+    assert settings.gitlab_webhook_auth == "signed"
+    assert settings.gitlab_webhook_signing_token == ""
+    assert settings.gitlab_webhook_secret_token == ""
+
+
+def test_webhook_settings_read_env_and_hide_secrets_in_repr(monkeypatch):
+    monkeypatch.setenv("GITHUB_WEBHOOK_SECRET", "gh-secret-value")
+    monkeypatch.setenv("GITLAB_WEBHOOK_AUTH", "token")
+    monkeypatch.setenv("GITLAB_WEBHOOK_SIGNING_TOKEN", "whsec_signing-value")
+    monkeypatch.setenv("GITLAB_WEBHOOK_SECRET_TOKEN", "gl-token-value")
+
+    settings = load_settings()
+
+    assert settings.github_webhook_secret == "gh-secret-value"
+    assert settings.gitlab_webhook_auth == "token"
+    assert settings.gitlab_webhook_signing_token == "whsec_signing-value"
+    assert settings.gitlab_webhook_secret_token == "gl-token-value"
+    text = repr(settings)
+    for secret in ("gh-secret-value", "whsec_signing-value", "gl-token-value"):
+        assert secret not in text

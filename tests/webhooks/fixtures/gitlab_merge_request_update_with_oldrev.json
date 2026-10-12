@@ -1,0 +1,24 @@
+{
+  "object_kind": "merge_request",
+  "user": {
+    "id": 5,
+    "username": "alice"
+  },
+  "project": {
+    "id": 123,
+    "path_with_namespace": "group/proj",
+    "web_url": "https://gitlab.com/group/proj"
+  },
+  "object_attributes": {
+    "iid": 7,
+    "action": "update",
+    "title": "Fix bug",
+    "source_branch": "fix",
+    "target_branch": "main",
+    "author_id": 5,
+    "last_commit": {
+      "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "oldrev": "cccccccccccccccccccccccccccccccccccccccc"
+  }
+}

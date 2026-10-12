@@ -16,7 +16,7 @@
 
 ## 4. Webhook transport
 
-- [ ] 4.1 Add provider authentication and payload normalization; verify invalid signatures, GitLab freshness/token modes, and supported/ignored events.
+- [x] 4.1 Add provider authentication and payload normalization; verify invalid signatures, GitLab freshness/token modes, and supported/ignored events.
 - [ ] 4.2 Connect webhook endpoints to durable acceptance; verify response semantics, repeated delivery, and persisted parsed context through API tests.
 
 ## 5. Acceptance and documentation
