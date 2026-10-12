@@ -142,6 +142,12 @@ arguments on the server.
 | `AI_DMC268_URL` | org variable | → `EUROROUTER_BASE_URL` |
 | `DEPLOY_SSH_KEY` | repo secret, **both repos** | private key of the `deploy` user, used by CI only |
 | `POSTGRES_PASSWORD` | repo secret, backend | database password. Postgres reads it only when its volume is first created, so **do not rotate it** without also running `ALTER USER app PASSWORD '...'` inside `dmc268-postgres` |
+| `VCS_GITHUB_TOKEN` | optional repo secret | bot token → `GITHUB_TOKEN` |
+| `VCS_GITHUB_WEBHOOK_SECRET` | optional repo secret | → `GITHUB_WEBHOOK_SECRET` |
+| `VCS_GITLAB_TOKEN` | optional repo secret | → `GITLAB_TOKEN` |
+| `VCS_GITLAB_WEBHOOK_SIGNING_TOKEN` | optional repo secret | → `GITLAB_WEBHOOK_SIGNING_TOKEN` |
+| `VCS_GITLAB_WEBHOOK_SECRET_TOKEN` | optional repo secret | → `GITLAB_WEBHOOK_SECRET_TOKEN` |
+| `VCS_GITLAB_WEBHOOK_AUTH` | optional repo variable | `signed` (default when empty) or `token` → `GITLAB_WEBHOOK_AUTH` |
 | `SITE_ADDRESS` | optional repo variable, both repos | real domain instead of the sslip.io name |
 
 Application settings are read from environment variables in `app/config.py`; the full list

@@ -11,6 +11,12 @@ locals {
     "EUROROUTER_BASE_URL=${var.eurorouter_base_url}",
     "EUROROUTER_API_KEYS=${var.eurorouter_api_keys}",
     "EUROROUTER_MODEL=${var.eurorouter_model}",
+    "GITHUB_TOKEN=${var.github_token}",
+    "GITHUB_WEBHOOK_SECRET=${var.github_webhook_secret}",
+    "GITLAB_TOKEN=${var.gitlab_token}",
+    "GITLAB_WEBHOOK_AUTH=${var.gitlab_webhook_auth}",
+    "GITLAB_WEBHOOK_SIGNING_TOKEN=${var.gitlab_webhook_signing_token}",
+    "GITLAB_WEBHOOK_SECRET_TOKEN=${var.gitlab_webhook_secret_token}",
   ]
 }
 
@@ -184,6 +190,21 @@ resource "docker_container" "worker" {
   image   = docker_image.api.image_id
   restart = "unless-stopped"
   command = ["python", "-m", "app.worker"]
+  env     = local.app_env
+
+  networks_advanced {
+    name = docker_network.app.id
+  }
+
+  depends_on = [docker_container.migrate, docker_container.redis]
+}
+
+# Re-enqueues accepted-but-undispatched, retry-due and lease-expired deliveries.
+resource "docker_container" "recovery" {
+  name    = "${local.prefix}-recovery"
+  image   = docker_image.api.image_id
+  restart = "unless-stopped"
+  command = ["python", "-m", "app.worker.recovery"]
   env     = local.app_env
 
   networks_advanced {
