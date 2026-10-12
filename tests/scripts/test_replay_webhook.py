@@ -1,5 +1,6 @@
 import base64
 import http.client
+import json
 import time
 from collections.abc import Mapping
 from pathlib import Path
@@ -241,6 +242,69 @@ def test_main_expectation_mismatch_exits_1(tmp_path):
     assert main([*base, "--expect", "ignored"], env=env, send=Recorder()) == 1
     ok = Recorder(response=b'{"status":"ignored"}')
     assert main([*base, "--expect", "ignored"], env=env, send=ok) == 0
+
+
+@pytest.mark.parametrize("response_format", ["json", "status", "non_json"])
+@pytest.mark.parametrize(
+    "provider,mode", [("github", "signed"), ("gitlab", "signed"), ("gitlab", "token")]
+)
+def test_main_reflected_authentication_and_body_are_never_printed(
+    tmp_path, capsys, provider, mode, response_format
+):
+    body = b'{"private": "confidential-payload-marker"}'
+    env = {
+        "GITHUB_WEBHOOK_SECRET": GITHUB_SECRET,
+        "GITLAB_WEBHOOK_SIGNING_TOKEN": GITLAB_SIGNING_TOKEN,
+        "GITLAB_WEBHOOK_SECRET_TOKEN": GITLAB_SECRET_TOKEN,
+    }
+    reflected_values = []
+
+    def reflecting_send(url, sent, headers):
+        authentication = headers.get(
+            "X-Hub-Signature-256", headers.get("webhook-signature", headers.get("X-Gitlab-Token"))
+        )
+        reflected_values.extend([*env.values(), authentication, sent.decode()])
+        reflection = " ".join(reflected_values)
+        if response_format == "non_json":
+            return 200, reflection.encode()
+        if response_format == "status":
+            return 200, json.dumps({"status": reflection}).encode()
+        return 200, json.dumps({"status": "ignored", "reflection": reflection}).encode()
+
+    code = main(
+        [provider, "--url", "u", "--payload", _payload(tmp_path, body), "--gitlab-mode", mode],
+        env=env,
+        send=reflecting_send,
+        now=lambda: NOW,
+    )
+    assert code == 0
+    captured = capsys.readouterr()
+    output = captured.out + captured.err
+    for value in reflected_values:
+        assert value not in output
+    assert "confidential-payload-marker" not in output
+
+
+def test_main_mismatch_diagnostic_does_not_echo_sensitive_expectation(tmp_path, capsys):
+    code = main(
+        [
+            "gitlab",
+            "--url",
+            "u",
+            "--payload",
+            _payload(tmp_path),
+            "--gitlab-mode",
+            "token",
+            "--expect",
+            GITLAB_SECRET_TOKEN,
+        ],
+        env={"GITLAB_WEBHOOK_SECRET_TOKEN": GITLAB_SECRET_TOKEN},
+        send=Recorder(response=b"not JSON"),
+    )
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "MISMATCH" in captured.err
+    assert GITLAB_SECRET_TOKEN not in captured.out + captured.err
 
 
 # --- in process against the real app -----------------------------------------------------

@@ -28,7 +28,6 @@ EXIT_TRANSPORT = 3
 _KEY_PREFIX = "whsec_"
 _DEFAULT_EVENTS = {"github": "pull_request", "gitlab": "Merge Request Hook"}
 _REQUEST_TIMEOUT_SECONDS = 10.0
-_MAX_PRINTED_RESPONSE = 200
 
 Send = Callable[[str, bytes, dict[str, str]], tuple[int, bytes]]
 
@@ -204,13 +203,12 @@ def main(
     except (OSError, urllib.error.URLError, http.client.HTTPException) as exc:
         print(f"error: request failed: {type(exc).__name__}", file=sys.stderr)
         return EXIT_TRANSPORT
-    shown = raw[:_MAX_PRINTED_RESPONSE].decode("utf-8", errors="replace")
-    print(f"delivery_id={delivery_id} http_status={status} response={shown}")
+    print(f"delivery_id={delivery_id} http_status={status} response body omitted")
     if status != args.expect_status:
         print(f"MISMATCH: expected http status {args.expect_status}", file=sys.stderr)
         return EXIT_MISMATCH
     if args.expect is not None and _response_status(raw) != args.expect:
-        print(f"MISMATCH: expected response status {args.expect}", file=sys.stderr)
+        print("MISMATCH: response status does not match expectation", file=sys.stderr)
         return EXIT_MISMATCH
     return EXIT_OK
 
