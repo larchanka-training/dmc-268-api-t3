@@ -24,11 +24,12 @@ FastAPI backend for an AI code reviewer for GitHub Pull Requests and GitLab Merg
 ## Existing project documentation
 
 - `README.md`: setup, local development, quality checks, and deployment overview.
-- `BACKEND_ARCHITECTURE.md`: current layering and data model overview.
-- `SYSTEM_DESIGN.md`: draft product architecture and open design questions.
+- `docs/BACKEND_ARCHITECTURE.md`: current layering, webhook ingestion flow and data model overview.
+- `docs/VCS_SETUP.md`: bot account, token permissions, webhook setup and configuration.
+- `docs/SYSTEM_DESIGN.md`: draft product architecture and open design questions.
 - `docs/architecture/erd.md`: entity relationship diagram.
 - `docs/DEVOPS.md`: deployment and operations.
 
 ## Current implementation boundary
 
-The implemented surface includes the `/healthcheck` endpoint, persistence entities for repositories/merge requests/review jobs/context payloads/findings, structured LLM review generation with provider fallback, and an RQ worker with a `ping` smoke job. VCS adapters, webhook orchestration, and publishing reviews are described as future work in the design and are not current API contracts.
+The implemented surface includes the `/healthcheck` endpoint, persistence entities for repositories/merge requests/review jobs/context payloads/findings, structured LLM review generation with provider fallback, an RQ worker with a `ping` smoke job, signed GitHub and GitLab webhook endpoints that record deliveries durably, GitHub and GitLab read-only VCS adapters, an ingestion worker job that stores a structured diff context per revision, and a `recovery` process that re-dispatches stuck deliveries (see `docs/BACKEND_ARCHITECTURE.md` and `docs/VCS_SETUP.md`). The review itself over the stored context and publishing reviews back to the VCS are still future work in the design and are not current API contracts.

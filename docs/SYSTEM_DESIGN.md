@@ -167,6 +167,27 @@ Initial automatic triggers are proposed as:
 
 Exact provider event/action mapping remains an implementation decision and must be isolated in adapters.
 
+### Implemented in `add-vcs-webhooks-context` (provisional)
+
+The change `add-vcs-webhooks-context` implements the following event matrix. It is a provisional implementation, not a team decision: the exact matrix stays open in [§15](#15-open-decisions). Code structure is in [`BACKEND_ARCHITECTURE.md`](BACKEND_ARCHITECTURE.md#webhook-ingestion); setup and responses are in [`VCS_SETUP.md`](VCS_SETUP.md#6-events-and-responses).
+
+| Provider | Starts ingestion | Not handled (authenticated, answered `ignored`) |
+|---|---|---|
+| GitHub | `pull_request` with action `opened` or `synchronize` | other events (including `ping`), other actions (including `reopened`) |
+| GitLab | `Merge Request Hook` with action `open`, or `update` whose `oldrev` is present and differs from the head commit | other events and actions, `update` without a source commit change |
+
+`reopened` (GitHub) and GitLab `reopen` are not handled, so a reopened PR/MR is ingested only when a later push changes its head.
+
+Deduplication as implemented is in the `vcs_deliveries` inbox table, enforced by PostgreSQL unique constraints:
+- `uq_vcs_deliveries_provider_delivery` on `(provider, delivery_id)`: the same technical delivery is accepted once;
+- `uq_vcs_deliveries_revision` on `(provider, repository_external_id, pr_number, head_sha)`: the same revision is accepted once, whichever delivery announced it.
+
+Further, `review_jobs` is unique on `(merge_request_id, head_sha)`. These cover the webhook trigger only. There is no `review_deduplication_key`, no `automatic_trigger` dimension, and no manual rerun yet.
+
+The webhook is a trigger, not the source of truth: the worker reads the PR/MR state and the diff through the VCS adapter and rejects a revision whose head differs from the delivery head.
+
+Divergence that remains: the code uses `MergeRequest`/`ReviewJob` (`pending`/`running`/`completed`/`failed`), not `ReviewRun` (`NEW` -> `QUEUED` -> ...) described in §3 and §12. Webhook ingestion creates a `ReviewJob` per revision with a stored context; nothing runs the review yet. The models are not migrated to `ReviewRun` by this change.
+
 ### Deduplication
 
 Webhook `delivery_id` prevents duplicate processing of the same technical delivery, but it is not sufficient as business deduplication.
@@ -429,7 +450,7 @@ The following must remain visible for team review rather than being silently fix
 
 - supported languages and review categories;
 - rule catalog, ownership, scoring and inheritance;
-- exact GitHub/GitLab webhook event matrix;
+- exact GitHub/GitLab webhook event matrix (provisionally implemented in `add-vcs-webhooks-context`, see [§5](#implemented-in-add-vcs-webhooks-context-provisional); still open for the team);
 - GitHub Cloud vs Enterprise and deployment model;
 - VCS permission scopes and secret-management implementation;
 - LLM provider/model and data-processing terms;
