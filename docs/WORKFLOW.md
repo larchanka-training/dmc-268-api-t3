@@ -61,10 +61,12 @@ One-time setup: create an ngrok account and a static domain in the ngrok dashboa
 **Option A — tunnel together with the stack in Docker.** Put the ngrok authtoken into `NGROK_AUTHTOKEN` in `.env`, then:
 
 ```bash
-docker compose --profile tunnel up
+docker compose --profile tunnel up -d --build --wait
 ```
 
 The `ngrok` service starts after the API is healthy and forwards to `api:8000`. Without `--profile tunnel` it does not start, so plain `docker compose up` is unchanged.
+
+Stop the tunnel with `docker compose --profile tunnel stop ngrok`.
 
 **Option B — ngrok on the host** (also for the API run with `uvicorn`). Install it and register the authtoken once (`brew install ngrok`, `ngrok config add-authtoken <token>`), start the API, then in a separate terminal:
 
