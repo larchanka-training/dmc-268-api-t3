@@ -138,3 +138,14 @@ Phase-4 residual risks remain visible in VCS_SETUP §8: recovery availability, A
 ## Review fix checkpoint
 
 Replay response diagnostics no longer print server bodies or user-supplied expectation text. Ten reflected-authentication/body regression cases were added. Parent verification after this fix: full isolated PostgreSQL 16 / Redis 8 suite **530 passed, 0 skipped**, pre-commit all-files **PASS**. Further final-review fixes and their checks remain pending.
+
+CI for replay/evidence revision `a23f33f`: all required jobs **PASS**, [run 38266965585](https://github.com/larchanka-training/dmc-268-api-t3/actions/runs/38266965585). Later security/architecture fixes must receive their own final CI verification.
+
+## Final-review fix checkpoint (ports extraction and composition module)
+
+This section supersedes the "Architecture conflict" blocker and the statement that dispatch/recovery use `logger.exception` above; those lines are kept as history.
+
+- **Architecture conflict resolved.** Ingestion services (`app/ingestion/service.py`, `dispatch.py`) now depend only on the ports in `app/ingestion/ports.py`. SQLAlchemy lives in `app/repositories/ingestion.py`, RQ in `app/worker/ingestion_queue.py`, and `app/composition/ingestion.py` is the only module wiring them (used by `app/api/webhooks.py`, `app/worker/ingestion.py`, `app/worker/recovery.py`). `app/ingestion/__init__.py` exports event/result types only, which removed the import cycle through `app.worker`. `app/worker/ingestion_runtime.py` was removed.
+- **Logging.** Dispatch no longer uses `logger.exception`; it logs a fixed message, the delivery id and the exception class name, never the exception text or traceback. Deterministic data errors store `DataError: Value cannot be stored (<SQLSTATE>)`, without the driver message.
+- **Regression tests.** `tests/webhooks/test_framework_free.py` runs fresh interpreters: `app.repositories.ingestion`, `app.worker.ingestion_queue` and `app.composition.ingestion` each import first without error, and `app.ingestion.*` and `app.webhooks.*` load none of sqlalchemy, rq, redis, fastapi, starlette. It failed first (no composition module, `app.ingestion` pulled in `app.worker`).
+- **Checks.** Full suite against the throwaway PostgreSQL/Redis containers: 535 passed, 0 skipped. `uv run pre-commit run --all-files`: all hooks passed (ruff, ruff format, mypy strict, pylint). Fresh-interpreter `python -c "import <module>"` over every module under `app/`: no failures.

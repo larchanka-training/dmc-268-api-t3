@@ -7,8 +7,9 @@ import httpx
 from sqlalchemy.exc import StatementError
 from sqlalchemy.orm import Session
 
+from app.composition.ingestion import ingest_delivery
 from app.config import settings
-from app.ingestion import IngestResult, ingest_delivery
+from app.ingestion import IngestResult
 from app.ingestion.service import utc_now
 from app.vcs import (
     GitHubClient,

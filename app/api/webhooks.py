@@ -15,9 +15,9 @@ from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from app.composition.ingestion import accept_and_dispatch
 from app.config import Settings
 from app.ingestion import AcceptOutcome, VcsEvent
-from app.ingestion.dispatch import accept_and_dispatch
 from app.queue import QUEUE_NAME
 from app.webhooks.auth import verify_github, verify_gitlab
 from app.webhooks.errors import WebhookAuthError, WebhookPayloadError

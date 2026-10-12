@@ -18,12 +18,13 @@ from sqlalchemy import Engine, event, func, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
+from app.composition.ingestion import dispatch_pending, enqueue_delivery, ingest_delivery
 from app.config import settings
-from app.ingestion import accept_delivery, ingest_delivery
-from app.ingestion.dispatch import DispatchOutcome, dispatch_pending, enqueue_delivery
+from app.ingestion.dispatch import DispatchOutcome
 from app.ingestion.service import DEFAULT_MAX_ATTEMPTS
 from app.models import ContextPayload, ReviewJob, VcsDelivery, VcsDeliveryStatus
 from app.queue import get_queue
+from app.repositories.ingestion import accept_delivery
 from app.vcs import PullRequestRef, RevisionSnapshot, VcsUpstreamError
 from app.worker import ingestion as ingestion_job
 from app.worker.recovery import run_loop

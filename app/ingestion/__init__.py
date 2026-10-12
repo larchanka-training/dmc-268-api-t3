@@ -5,7 +5,6 @@ from app.ingestion.events import (
     IngestResult,
     VcsEvent,
 )
-from app.ingestion.service import accept_delivery, ingest_delivery
 
 __all__ = [
     "AcceptOutcome",
@@ -13,6 +12,4 @@ __all__ = [
     "IngestOutcome",
     "IngestResult",
     "VcsEvent",
-    "accept_delivery",
-    "ingest_delivery",
 ]

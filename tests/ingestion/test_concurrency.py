@@ -6,14 +6,10 @@ from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.ingestion import (
-    AcceptOutcome,
-    IngestOutcome,
-    VcsEvent,
-    accept_delivery,
-    ingest_delivery,
-)
+from app.composition.ingestion import ingest_delivery
+from app.ingestion import AcceptOutcome, IngestOutcome, VcsEvent
 from app.models import ContextPayload, MergeRequest, Repository, ReviewJob, VcsDelivery
+from app.repositories.ingestion import accept_delivery
 from app.vcs import RevisionSnapshot
 from tests.ingestion.conftest import FakeClock, FakeVcsClient, make_event, make_snapshot
 

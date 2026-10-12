@@ -8,9 +8,10 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
+from app.composition.ingestion import ingest_delivery
 from app.config import settings
 from app.context import DiffParseError
-from app.ingestion import IngestOutcome, VcsEvent, accept_delivery, ingest_delivery, service
+from app.ingestion import IngestOutcome, VcsEvent
 from app.models import (
     ContextPayload,
     MergeRequest,
@@ -20,6 +21,8 @@ from app.models import (
     VcsDeliveryStatus,
 )
 from app.models.review_job import ReviewJobStatus
+from app.repositories import ingestion as ingestion_repository
+from app.repositories.ingestion import accept_delivery
 from app.vcs import (
     VcsAuthError,
     VcsDiffIncompleteError,
@@ -150,7 +153,9 @@ def test_deterministic_write_failure_is_terminal_and_leaves_no_partial_rows(
     )
     assert row.last_error is not None
     assert row.last_error.startswith("DataError: ")
-    # The driver message is kept; the SQL and bound parameters are not.
+    # Only the value-free cause (SQLSTATE) is kept; the driver message, SQL and
+    # bound parameters are not.
+    assert row.last_error.endswith("(22001)")
     assert "[SQL:" not in row.last_error
     assert "b" * 100 not in row.last_error
 
@@ -163,7 +168,7 @@ def test_transient_write_failure_stays_on_the_lease_path(
     def lost_connection(*_: object) -> None:
         raise OperationalError("INSERT", {}, Exception("connection lost"))
 
-    monkeypatch.setattr(service, "_upsert_repository", lost_connection)
+    monkeypatch.setattr(ingestion_repository, "_upsert_repository", lost_connection)
 
     with pytest.raises(OperationalError):
         ingest_delivery(session_factory, FakeVcsClient(), delivery_id, clock=clock)

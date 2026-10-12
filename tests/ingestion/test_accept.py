@@ -3,8 +3,9 @@ from collections.abc import Callable
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.ingestion import AcceptOutcome, accept_delivery
+from app.ingestion import AcceptOutcome
 from app.models import ReviewJob, VcsDelivery, VcsDeliveryStatus
+from app.repositories.ingestion import accept_delivery
 from tests.ingestion.conftest import make_event
 
 

@@ -9,16 +9,20 @@ from rq.job import Job, JobStatus
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.ingestion import AcceptOutcome, IngestOutcome, accept_delivery, ingest_delivery
-from app.ingestion.dispatch import (
-    DispatchOutcome,
+from app.composition.ingestion import (
     accept_and_dispatch,
     dispatch_pending,
     enqueue_delivery,
+    ingest_delivery,
+)
+from app.ingestion import AcceptOutcome, IngestOutcome
+from app.ingestion.dispatch import (
+    DispatchOutcome,
     job_id_for,
 )
 from app.models import ContextPayload, ReviewJob, VcsDelivery, VcsDeliveryStatus
 from app.queue import get_queue
+from app.repositories.ingestion import accept_delivery
 from app.vcs import VcsUpstreamError
 from tests.ingestion.conftest import FakeClock, FakeVcsClient, make_event
 

@@ -23,11 +23,12 @@ Setup, configuration and responses are in [`VCS_SETUP.md`](VCS_SETUP.md); this s
 POST /webhooks/{github,gitlab}
   -> app/api/webhooks.py        read raw body (25 MiB cap), map errors to 400/401/413/503
   -> app/webhooks/              authenticate raw bytes (auth.py), validate and normalize to VcsEvent
+  -> app/composition/ingestion.py  wires the repository and queue adapters (the only place)
   -> app/ingestion/dispatch.py  accept_and_dispatch: commit the inbox row, then enqueue
-  -> app/ingestion/service.py   accept_delivery: idempotent insert into vcs_deliveries
+  -> app/repositories/ingestion.py  accept_delivery: idempotent insert into vcs_deliveries
   -> Redis / RQ                 job app.worker.ingestion.run_ingestion(delivery_id)
 
-worker: app/worker/ingestion.py -> app/ingestion/service.py ingest_delivery
+worker: app/worker/ingestion.py -> app/composition/ingestion.py -> app/ingestion/service.py ingest_delivery
   -> app/vcs/                   GitHubClient / GitLabClient fetch metadata and the complete raw diff
   -> app/context/               parse_diff builds the structured context
   -> PostgreSQL                 repositories, merge_requests, review_jobs, context_payloads, vcs_deliveries
@@ -37,7 +38,7 @@ recovery: app/worker/recovery.py -> dispatch_pending re-enqueues stuck deliverie
 
 - **Router** (`app/api/webhooks.py`) holds no business logic. It reads the raw body, runs authentication and normalization in a threadpool, and calls `accept_and_dispatch`. Authentication failure is `401` (the same answer for a wrong and for an unconfigured secret), a payload that fails validation is `400`, an unsupported event or action is `200 ignored`, and a database outage is `503`.
 - **Authentication and normalization** (`app/webhooks/`) are pure functions over headers and bytes: HMAC verification for GitHub, Standard Webhooks signature or token comparison for GitLab, then a provider normalizer producing a frozen `VcsEvent` (`app/ingestion/events.py`) or an `IgnoredEvent`. They do not touch the database.
-- **Ingestion service** (`app/ingestion/`) takes a `Session` factory and a `VcsClient` and contains the orchestration. It imports SQLAlchemy directly and issues its statements itself; there is no separate repository class for these tables. **Known divergence, pending a team decision:** this contradicts the Router -> Service -> Repository target above, the `AGENTS.md` rule "Services import neither FastAPI nor SQLAlchemy", and the ports/adapters boundary in the change's `design.md` (`app/ingestion/dispatch.py` also imports RQ directly). It is not an approved exception. The idempotency rules depend on PostgreSQL features (`ON CONFLICT`, `FOR UPDATE SKIP LOCKED`), which is why the statements sit next to the code that relies on them today. The follow-up is to extract a repository and a queue port.
+- **Ingestion services** (`app/ingestion/service.py`, `dispatch.py`) orchestrate through typed ports and detached delivery state (`ports.py`), without SQLAlchemy or RQ imports. The service owns attempt limits, lease transitions, retry classification and backoff, and parses context outside database transactions. `app/repositories/ingestion.py` implements the persistence port with SQLAlchemy, preserving PostgreSQL uniqueness, row locks and atomic writes. `app/worker/ingestion_queue.py` implements the queue port with RQ; `app/composition/ingestion.py`, importable by both the API and the worker, is the only place that wires the repository and queue adapters to the services (session-factory entry points `accept_and_dispatch`, `ingest_delivery`, `dispatch_pending`). `app/ingestion/__init__.py` exports only event/result types, and the service, dispatch, ports and `app/webhooks/` modules load no SQLAlchemy, RQ, Redis or web framework (checked by `tests/webhooks/test_framework_free.py`). The former direct SQLAlchemy/RQ dependency was an unapproved divergence and has been removed.
 - **VCS adapters** (`app/vcs/`) implement the `VcsClient` protocol (`fetch_revision`) for GitHub and GitLab. They only read, have a timeout, classify errors as retryable or terminal, fail instead of truncating an oversized diff, and refuse a revision whose head SHA changed during the fetch. Credentials are read from settings by the worker job (`SettingsVcsClient`); they are never part of a queue message or a stored row.
 - **Context parser** (`app/context/`) turns the raw unified diff into the `DiffContext` schema stored in `context_payloads.structured_context`. Source code is treated as untrusted data and is never executed.
 - **RQ job** (`app/worker/ingestion.py`) carries only the delivery id. The job id is deterministic (`ingest-<delivery id>`).

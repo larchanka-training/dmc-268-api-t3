@@ -6,9 +6,11 @@ from datetime import timedelta
 
 from rq import Queue
 
+from app.composition.ingestion import dispatch_pending
 from app.config import settings
-from app.ingestion.dispatch import dispatch_pending
-from app.ingestion.service import Clock, SessionFactory, utc_now
+from app.ingestion.ports import Clock
+from app.ingestion.service import utc_now
+from app.repositories.ingestion import SessionFactory
 
 logger = logging.getLogger(__name__)
 
