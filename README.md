@@ -36,7 +36,7 @@ Then visit http://localhost:8000/healthcheck.
 docker compose up
 ```
 
-Starts PostgreSQL, Redis, a one-shot `migrate` container (`alembic upgrade head`), the API and the worker. The API is at http://localhost:8000/healthcheck once the stack is up. Check that the worker consumes jobs:
+Starts PostgreSQL, Redis, a one-shot `migrate` container (`alembic upgrade head`), the API, the worker and the `recovery` process (re-dispatches stored webhook deliveries). The API is at http://localhost:8000/healthcheck once the stack is up. Check that the worker consumes jobs:
 
 ```bash
 docker compose exec api python -m app.worker.smoke   # exit code 0 = OK
@@ -86,8 +86,22 @@ See `.env.example`. Copy it to `.env` and adjust as needed:
 | `EUROROUTER_BASE_URL` | Eurorouter API base URL | empty |
 | `EUROROUTER_API_KEYS` | Comma-separated Eurorouter API keys | empty |
 | `EUROROUTER_MODEL` | Eurorouter model name | `gpt-4o-mini` |
+| `GITHUB_TOKEN` | Bot token for GitHub reads | empty |
+| `GITHUB_API_BASE_URL` | GitHub API origin | `https://api.github.com` |
+| `GITHUB_WEBHOOK_SECRET` | Secret for `X-Hub-Signature-256`; empty rejects every GitHub webhook | empty |
+| `GITLAB_TOKEN` | Token for GitLab reads | empty |
+| `GITLAB_API_BASE_URL` | GitLab API origin | `https://gitlab.com/api/v4` |
+| `GITLAB_WEBHOOK_AUTH` | `signed` or `token` | `signed` |
+| `GITLAB_WEBHOOK_SIGNING_TOKEN` | GitLab signing token (`whsec_...`) | empty |
+| `GITLAB_WEBHOOK_SECRET_TOKEN` | GitLab secret token (token mode) | empty |
+| `VCS_TIMEOUT_SECONDS` | Timeout of each VCS API request (provisional) | `30` |
+| `VCS_MAX_DIFF_TOKENS` | Diff size limit (provisional) | `32000` |
+| `RECOVERY_INTERVAL_SECONDS` | Recovery scan interval (provisional) | `30` |
+| `RECOVERY_STALE_AFTER_SECONDS` | Re-enqueue age of an unclaimed delivery (provisional) | `300` |
 | `NGROK_DOMAIN` | Local only: personal ngrok static domain for real webhook deliveries | empty |
 | `NGROK_AUTHTOKEN` | Local only: ngrok authtoken for the `tunnel` compose profile | empty |
+
+Setting up the bot account, tokens, webhooks and the live check — [`docs/VCS_SETUP.md`](docs/VCS_SETUP.md).
 
 ## Deployment
 

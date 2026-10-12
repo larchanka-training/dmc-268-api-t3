@@ -102,6 +102,7 @@ All project documents live in [`docs/`](docs/):
 - [`docs/SYSTEM_DESIGN.md`](docs/SYSTEM_DESIGN.md) — v1 architecture, ReviewRun, queue, Context Builder, LLM Gateway, validation, publication, NFRs, and open decisions;
 - [`docs/BACKEND_ARCHITECTURE.md`](docs/BACKEND_ARCHITECTURE.md) — layers, data models, migrations, worker;
 - [`docs/architecture/erd.md`](docs/architecture/erd.md) — ER diagram;
+- [`docs/VCS_SETUP.md`](docs/VCS_SETUP.md) — GitHub/GitLab bot, token permissions, webhook setup, configuration, simulated and live checks, residual risks;
 - [`docs/DEVOPS.md`](docs/DEVOPS.md) — environment, deploy, HTTPS, secrets, access, rollback, troubleshooting;
 - [`docs/QA/TEST_PLAN.md`](docs/QA/TEST_PLAN.md) — testing strategy and LLM evaluation;
 - [`docs/WORKFLOW.md`](docs/WORKFLOW.md) — process, checks, running, migrations, PRs, deploy;

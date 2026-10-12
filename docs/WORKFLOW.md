@@ -47,6 +47,8 @@ Ollama runs externally (`OLLAMA_HOST`); Eurorouter credentials go into `.env` (`
 
 ### Real GitHub webhook deliveries (ngrok)
 
+Bot account, token permissions and webhook settings — [`VCS_SETUP.md`](VCS_SETUP.md). Without a tunnel, send signed simulated deliveries with `scripts/replay_webhook.py` (see below).
+
 GitHub must reach `POST /webhooks/github` over a public HTTPS URL. Locally this is an optional [ngrok](https://ngrok.com/) tunnel to the API on port 8000. Each developer uses their own free static domain; it lives only in `.env` (`NGROK_DOMAIN`, without `https://`).
 
 One-time setup: create an ngrok account and a static domain in the ngrok dashboard (**Domains**), put the domain into `NGROK_DOMAIN`, and point the repository webhook at it:
@@ -72,6 +74,10 @@ ngrok http --url=$(grep ^NGROK_DOMAIN= .env | cut -d= -f2) 8000
 
 The command runs until stopped; an agent should start it as a background process. In both options the inspector at `http://127.0.0.1:4040` shows every delivery and response. In GitHub, **Settings → Webhooks → Recent Deliveries** shows the provider side and has **Redeliver**: `401` means a secret mismatch, `502`/an ngrok error page means the API is not running on 8000.
 
+### Simulated webhook deliveries
+
+`scripts/replay_webhook.py` sends a payload file with locally built signature headers (the secret is read from an environment variable, never printed); `scripts/smoke_webhooks.sh` runs the full webhook to worker to context path against the compose stack with throwaway secrets. Neither is a live provider check — [`VCS_SETUP.md` §7](VCS_SETUP.md#7-verification).
+
 ## 3. Checks
 
 Before considering a task done — the same as CI runs:
@@ -94,6 +100,15 @@ For changes to the Dockerfile, compose, or worker — a stack smoke test, as in 
 
 ```bash
 docker compose up -d --build --wait --wait-timeout 180
+```
+
+For changes to webhooks, ingestion or the worker, also the webhook smoke (CI `compose` job):
+
+```bash
+docker compose down -v
+COMPOSE_FILE=docker-compose.yml:docker-compose.smoke.yml docker compose up -d --build --wait --wait-timeout 180
+scripts/smoke_webhooks.sh
+docker compose down -v
 ```
 
 Do not disable linters globally; a targeted `# noqa` / `# pylint: disable=` / `# type: ignore[...]` needs a reason in a comment. If a check cannot be run (no Docker, no Postgres, etc.), say so — do not present unverified work as verified.
