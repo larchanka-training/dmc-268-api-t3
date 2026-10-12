@@ -143,7 +143,7 @@ CI for replay/evidence revision `a23f33f`: all required jobs **PASS**, [run 3826
 
 ## Final-review fix checkpoint (ports extraction and composition module)
 
-This section supersedes the "Architecture conflict" blocker and the statement that dispatch/recovery use `logger.exception` above; those lines are kept as history.
+This section supersedes the "Architecture conflict" blocker and the statement that dispatch uses `logger.exception` above (recovery still logs a failed tick with `logger.exception`; its only DB call there is the candidate SELECT bound to a timestamp and a limit); those lines are kept as history.
 
 - **Architecture conflict resolved.** Ingestion services (`app/ingestion/service.py`, `dispatch.py`) now depend only on the ports in `app/ingestion/ports.py`. SQLAlchemy lives in `app/repositories/ingestion.py`, RQ in `app/worker/ingestion_queue.py`, and `app/composition/ingestion.py` is the only module wiring them (used by `app/api/webhooks.py`, `app/worker/ingestion.py`, `app/worker/recovery.py`). `app/ingestion/__init__.py` exports event/result types only, which removed the import cycle through `app.worker`. `app/worker/ingestion_runtime.py` was removed.
 - **Logging.** Dispatch no longer uses `logger.exception`; it logs a fixed message, the delivery id and the exception class name, never the exception text or traceback. Deterministic data errors store `DataError: Value cannot be stored (<SQLSTATE>)`, without the driver message.

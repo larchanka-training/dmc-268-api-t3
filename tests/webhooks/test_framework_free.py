@@ -19,6 +19,9 @@ ADAPTER_MODULES = (
     "app.repositories.ingestion",
     "app.worker.ingestion_queue",
     "app.composition.ingestion",
+    "app.worker.ingestion",
+    "app.worker.recovery",
+    "app.api.webhooks",
 )
 FORBIDDEN = ("sqlalchemy", "rq", "redis", "fastapi", "starlette")
 
