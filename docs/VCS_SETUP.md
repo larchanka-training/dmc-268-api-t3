@@ -120,7 +120,7 @@ Responses of `POST /webhooks/{github,gitlab}` (`app/api/webhooks.py`). Successfu
 
 | Code | Body status / meaning |
 |---|---|
-| `200` | `accepted`: a new delivery was recorded and a job enqueued |
+| `200` | `accepted`: a new delivery was durably recorded; queue dispatch is attempted and recovery retries it if Redis is unavailable |
 | `200` | `duplicate`: the delivery id was seen before, or the same revision was already recorded; nothing new is enqueued |
 | `200` | `ignored`: authentic but unsupported event or action; nothing is stored |
 | `400` | invalid JSON (including a form-encoded GitHub body) or a payload that fails field validation, including a missing or invalid delivery id header (`X-GitHub-Delivery` for GitHub; for GitLab only in `token` mode, where neither `webhook-id` nor `Idempotency-Key` is present; in `signed` mode a missing `webhook-id` is `401`) |
@@ -175,5 +175,5 @@ Result of the live check is recorded separately from the simulated checks (who a
 - **GitLab token mode needs ASCII-only secrets.** HTTP header values are decoded as latin-1, while the configured secret is compared as UTF-8; a non-ASCII secret never matches. Use ASCII-only secrets.
 - **`repository_url` is stored without scheme validation.** It is taken from the payload (`repository.html_url`, `project.web_url`, up to 2048 characters), is for display only and is never fetched; the adapters use only the configured API origins. Do not render it as a raw link in a UI or a comment without validating the scheme.
 - **A GitHub repository rename changes `owner/name`**, which is the repository key, so the same pull request is seen as a different one and the revision-level deduplication does not carry across the rename.
-- **Missing production secrets are not a deploy failure.** The deploy succeeds and the webhook endpoints answer `401` until `VCS_*` secrets are created. The deploy smoke checks exactly this `401` and that `dmc268-recovery` is running.
+- **Missing production secrets are not a deploy failure.** The deploy succeeds and the webhook endpoints answer `401` until `VCS_*` secrets are created. The deploy smoke checks that an unsigned request receives `401` and that `dmc268-recovery` is running; it does not establish whether production secrets are configured or a signed provider delivery can be ingested.
 - **Live provider behavior is not exercised by CI.** The GitLab minimal token scope and the real GitLab `oldrev` and header behavior are verified only against fixtures.

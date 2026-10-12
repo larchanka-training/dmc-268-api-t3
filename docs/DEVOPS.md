@@ -265,5 +265,5 @@ Known limitations:
 | Frontend deploy says "Backend infra is not deployed" | merge/deploy the backend repo first |
 | Port 5355 open in the post-deploy check of other teams' setups | not applicable here, but the bootstrap disables LLMNR/mDNS anyway |
 | Webhook deliveries from the provider get `401` | the matching `VCS_*` secret is not set or differs from the provider's webhook secret (also the GitLab mode: `VCS_GITLAB_WEBHOOK_AUTH`); GitHub must send `application/json`. See [`VCS_SETUP.md`](VCS_SETUP.md) |
-| A delivery stays `pending` in `vcs_deliveries` | `dmc268-recovery` or `dmc268-worker` is not running (`docker ps`, `docker logs dmc268-recovery`) |
+| A delivery stays `pending` in `vcs_deliveries` | Check `last_error` and `next_attempt_at` first: retry backoff or provider `Retry-After` can keep it pending. If it is due, check `dmc268-recovery` and `dmc268-worker` (`docker ps`, `docker logs dmc268-recovery`) |
 | `terraform` says a resource "has lifecycle.prevent_destroy" | intended; the database volume can't be removed through Terraform |

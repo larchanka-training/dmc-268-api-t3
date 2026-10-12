@@ -13,7 +13,7 @@ Router (FastAPI) -> Service (business logic) -> Repository (data access) -> LLM 
 - **Repository** — one class per aggregate (`RepositoryRepo`, `MergeRequestRepo`, `ReviewJobRepo`, `FindingRepo`), wrapping SQLAlchemy `Session` queries against the models in `app/models/`. No business logic.
 - **LLM Gateway** — the `app/llm/` package (separate PR): abstracts over LLM providers, returns validated `ReviewResult` Pydantic objects. Services depend on the Gateway's interface, never on a concrete provider.
 
-The target shape above is implemented for one use case so far: VCS webhook ingestion (next section). The review pipeline itself (LLM review of a stored context, validation, publication) is not implemented. The code uses `MergeRequest`/`ReviewJob` (`pending`/`running`/`completed`/`failed`), not the `ReviewRun` (`NEW` -> `QUEUED` -> ...) of [`SYSTEM_DESIGN.md` §3](SYSTEM_DESIGN.md#3-reviewrun-and-immutable-snapshot); this divergence remains and is not migrated by the webhook change.
+VCS webhook ingestion is implemented (next section), with the service/repository boundary divergence documented below. The review pipeline itself (LLM review of a stored context, validation, publication) is not implemented. The code uses `MergeRequest`/`ReviewJob` (`pending`/`running`/`completed`/`failed`), not the `ReviewRun` (`NEW` -> `QUEUED` -> ...) of [`SYSTEM_DESIGN.md` §3](SYSTEM_DESIGN.md#3-reviewrun-and-immutable-snapshot); this divergence remains and is not migrated by the webhook change.
 
 ## Webhook ingestion
 
