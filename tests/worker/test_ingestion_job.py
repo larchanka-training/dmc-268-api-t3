@@ -75,7 +75,10 @@ def test_modules_import_without_database_redis_or_network() -> None:
         "REDIS_URL": "redis://127.0.0.1:1/0",
         "POSTGRES_HOST": "invalid.invalid",
     }
-    code = "import app.worker.ingestion, app.worker.recovery, app.ingestion.dispatch"
+    code = (
+        "import app.main, app.api.webhooks, "
+        "app.worker.ingestion, app.worker.recovery, app.ingestion.dispatch"
+    )
     subprocess.run([sys.executable, "-c", code], env=env, check=True, cwd=ROOT, timeout=60)
 
 

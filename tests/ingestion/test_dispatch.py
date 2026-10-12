@@ -9,9 +9,10 @@ from rq.job import Job, JobStatus
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.ingestion import IngestOutcome, accept_delivery, ingest_delivery
+from app.ingestion import AcceptOutcome, IngestOutcome, accept_delivery, ingest_delivery
 from app.ingestion.dispatch import (
     DispatchOutcome,
+    accept_and_dispatch,
     dispatch_pending,
     enqueue_delivery,
     job_id_for,
@@ -180,3 +181,43 @@ def test_failed_and_succeeded_deliveries_are_never_dispatched(
     with session_factory() as session:
         assert session.scalar(select(func.count()).select_from(ContextPayload)) == 1
         assert session.scalar(select(func.count()).select_from(ReviewJob)) == 1
+
+
+def test_accept_and_dispatch_commits_then_enqueues_a_new_delivery(
+    session_factory: Factory, queue: Queue, clock: FakeClock
+) -> None:
+    result = accept_and_dispatch(session_factory, make_event(), queue=queue, clock=clock)
+
+    assert result.outcome == AcceptOutcome.CREATED
+    assert queue.job_ids == [job_id_for(result.delivery_id)]
+    assert _row(session_factory, result.delivery_id).last_dispatched_at == clock.now
+
+
+def test_accept_and_dispatch_does_not_re_enqueue_duplicates(
+    session_factory: Factory, queue: Queue, clock: FakeClock
+) -> None:
+    first = accept_and_dispatch(session_factory, make_event(), queue=queue, clock=clock)
+    assert queue.job_ids == [job_id_for(first.delivery_id)]
+
+    same_delivery = accept_and_dispatch(session_factory, make_event(), queue=queue, clock=clock)
+    same_revision = accept_and_dispatch(
+        session_factory, make_event(delivery_id="d2"), queue=queue, clock=clock
+    )
+
+    assert same_delivery.outcome == AcceptOutcome.DUPLICATE_DELIVERY
+    assert same_revision.outcome == AcceptOutcome.DUPLICATE_REVISION
+    assert {same_delivery.delivery_id, same_revision.delivery_id} == {first.delivery_id}
+    assert queue.job_ids == [job_id_for(first.delivery_id)]
+
+
+def test_accept_and_dispatch_keeps_the_row_when_the_queue_is_down(
+    session_factory: Factory, clock: FakeClock
+) -> None:
+    unreachable = get_queue(Redis.from_url("redis://127.0.0.1:1/0"))
+
+    result = accept_and_dispatch(session_factory, make_event(), queue=unreachable, clock=clock)
+
+    assert result.outcome == AcceptOutcome.CREATED
+    row = _row(session_factory, result.delivery_id)
+    assert row.status == VcsDeliveryStatus.PENDING
+    assert row.last_dispatched_at is None

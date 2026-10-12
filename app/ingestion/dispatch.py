@@ -9,7 +9,14 @@ from rq.job import Job
 from sqlalchemy import and_, or_, select, update
 from sqlalchemy.orm import Session
 
-from app.ingestion.service import DEFAULT_LEASE, Clock, SessionFactory, utc_now
+from app.ingestion.events import AcceptOutcome, AcceptResult, VcsEvent
+from app.ingestion.service import (
+    DEFAULT_LEASE,
+    Clock,
+    SessionFactory,
+    accept_delivery,
+    utc_now,
+)
 from app.models import VcsDelivery, VcsDeliveryStatus
 from app.queue import get_queue
 
@@ -89,6 +96,26 @@ def enqueue_delivery(
     except Exception:  # pylint: disable=broad-exception-caught
         logger.exception("Could not record dispatch of delivery %s", delivery_id)
     return outcome
+
+
+def accept_and_dispatch(
+    factory: SessionFactory,
+    event: VcsEvent,
+    *,
+    queue: Queue | None = None,
+    clock: Clock = utc_now,
+) -> AcceptResult:
+    """Durably accept ``event`` and enqueue its job only for a new delivery.
+
+    The inbox row is committed (and its session closed) before RQ is touched.
+    Duplicates are never re-enqueued; a delivery that is stuck is the recovery
+    dispatcher's job. Database errors propagate; queue errors do not.
+    """
+    with factory() as session:
+        result = accept_delivery(session, event)
+    if result.outcome == AcceptOutcome.CREATED:
+        enqueue_delivery(factory, result.delivery_id, queue=queue, clock=clock)
+    return result
 
 
 def _needs_dispatch(now: datetime, stale_after: timedelta):  # type: ignore[no-untyped-def]
