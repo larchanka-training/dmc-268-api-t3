@@ -149,3 +149,9 @@ This section supersedes the "Architecture conflict" blocker and the statement th
 - **Logging.** Dispatch no longer uses `logger.exception`; it logs a fixed message, the delivery id and the exception class name, never the exception text or traceback. Deterministic data errors store `DataError: Value cannot be stored (<SQLSTATE>)`, without the driver message.
 - **Regression tests.** `tests/webhooks/test_framework_free.py` runs fresh interpreters: `app.repositories.ingestion`, `app.worker.ingestion_queue` and `app.composition.ingestion` each import first without error, and `app.ingestion.*` and `app.webhooks.*` load none of sqlalchemy, rq, redis, fastapi, starlette. It failed first (no composition module, `app.ingestion` pulled in `app.worker`).
 - **Checks.** Full suite against the throwaway PostgreSQL/Redis containers: 535 passed, 0 skipped. `uv run pre-commit run --all-files`: all hooks passed (ruff, ruff format, mypy strict, pylint). Fresh-interpreter `python -c "import <module>"` over every module under `app/`: no failures.
+
+## Closing checkpoint (2026-10-12)
+
+- **Production secrets:** the user knowingly deferred creating the `VCS_*` repository secrets. Until they exist, production webhooks answer 401 (fail closed) and the deploy still succeeds; the deploy smoke asserts exactly that.
+- **Final review:** the ports extraction (63f3a8b) and the consumer import-order guard (2a05ffe) passed re-review with no Critical or Required findings. Full suite against PostgreSQL 16 / Redis: **535 passed, 0 skipped**; pre-commit all-files **PASS**.
+- **Branch CI** for `2a05ffe`: lint/types/tests, docker compose smoke, Terraform fmt + validate all **PASS** ([run 38282038465](https://github.com/larchanka-training/dmc-268-api-t3/actions/runs/38282038465)); build and deploy are skipped off `main`.

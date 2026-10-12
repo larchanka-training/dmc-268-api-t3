@@ -9,6 +9,6 @@
 - [x] Delegate 5.3a (Terraform variables and env, recovery container, ci-cd stage step and deploy smoke) to a fresh subagent. Verify with Terraform fmt/validate and commit.
 - [x] Delegate 5.3b (`docs/VCS_SETUP.md`, README, WORKFLOW, DEVOPS, AGENTS link) to a fresh subagent. Verify the cross-check and the live-check report, then commit.
 - [x] Delegate 5.3c (BACKEND_ARCHITECTURE, ERD, SYSTEM_DESIGN §5/§15, `project.md`) to a fresh subagent. Verify, tick 5.3, and commit.
-- [ ] User sets the production secrets in repository settings, or defers them knowingly.
-- [ ] Delegate 5.4 (all checks, reconciliation, `verification.md`) to a fresh subagent. Verify the results, tick 5.4, and commit.
-- [ ] Phase review, then the final review. Then the parent validates, archives, and opens the PR.
+- [x] User sets the production secrets in repository settings, or defers them knowingly.
+- [x] Delegate 5.4 (all checks, reconciliation, `verification.md`) to a fresh subagent. Verify the results, tick 5.4, and commit.
+- [x] Phase review, then the final review. Then the parent validates, archives, and opens the PR.
