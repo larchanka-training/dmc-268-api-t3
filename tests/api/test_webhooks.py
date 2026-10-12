@@ -134,9 +134,7 @@ def test_auth_failure_response_does_not_reveal_a_reason(api: Api) -> None:
         ("github_pull_request_closed.json", "pull_request"),
     ],
 )
-def test_github_unrelated_authenticated_events_are_ignored(
-    api: Api, name: str, event: str
-) -> None:
+def test_github_unrelated_authenticated_events_are_ignored(api: Api, name: str, event: str) -> None:
     response = _github(api, fixture_bytes(name), event=event)
 
     assert response.status_code == 200
